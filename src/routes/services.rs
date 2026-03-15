@@ -26,6 +26,7 @@ pub async fn get_service(
         logo_url: logo::logo_url(&state.logo_base_url, &row.slug),
         links: row.links,
         ref_link: row.ref_link,
+        created_at: row.created_at,
     };
 
     Ok(Json(detail))

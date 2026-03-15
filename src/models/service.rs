@@ -40,4 +40,5 @@ pub struct ServiceDetail {
     pub logo_url: String,
     pub links: serde_json::Value,
     pub ref_link: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
