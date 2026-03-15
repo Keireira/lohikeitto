@@ -1,6 +1,6 @@
 # Lohikeitto API
 
-Base URL: `https://soup.uha.com`
+Base URL: `https://soup.uha.app`
 
 All responses are JSON (UTF-8).
 
@@ -51,11 +51,6 @@ Service details by UUID. Includes localized names from `service_localizations`.
     "primary": "#354537"
   },
   "category": "VPN & Security",
-  "aliases": {
-    "ru": ["адгард"],
-    "ja": ["アドガード"],
-    "ko": ["애드가드"]
-  },
   "logo_url": "https://cdn.example.com/adguard.webp",
   "links": {
     "website": "https://adguard.com",
@@ -64,16 +59,17 @@ Service details by UUID. Includes localized names from `service_localizations`.
     "linkedin": "https://linkedin.com/company/adguard"
   },
   "locales": ["de", "en", "es", "fr", "ja", "ko", "ru"],
-  "localizations": [
-    { "locale": "ru", "name": "Адгард" },
-    { "locale": "ja", "name": "アドガード" }
-  ],
+  "localizations": {
+    "ru": "Адгард",
+    "ja": "アドガード"
+  },
+  "default_locale": "en",
   "ref_link": "https://adguard.com?ref=1234567890",
   "created_at": "2025-03-15T00:00:00Z"
 }
 ```
 
-`ref_link` may be `null`. `localizations` is an array of `{ locale, name }` pairs.
+`ref_link` may be `null`. `localizations` is a `{ locale: name }` object (only non-null locales included).
 
 ---
 

@@ -6,7 +6,6 @@ Brand metadata API for [uha](https://uha.app). Provides service search, detail l
 
 - **Backend:** Rust / Axum / SQLx
 - **Database:** PostgreSQL (pg_trgm for fuzzy search)
-- **Frontend:** Next.js 16 / React 19 / styled-components (in `frontend/`)
 
 ## Quick start
 
@@ -56,21 +55,23 @@ See [API.md](API.md) for full endpoint documentation.
 | `name`     | TEXT        | English canonical name               |
 | `slug`     | TEXT (unique)| URL-safe identifier, logo filename  |
 | `category` | TEXT        | One of 20 categories                 |
-| `aliases`  | JSONB       | `{ locale: [names] }` phonetic aliases |
 | `colors`   | JSONB       | `{ primary: "#hex" }`               |
 | `links`    | JSONB       | `{ website, x, github, ... }`       |
 | `locales`  | JSONB       | `["en","ja",...]` locales where popular |
+| `localization_id` | UUID (FK) | References `service_localizations(id)` |
+| `default_locale` | TEXT      | Service origin locale (default `en`) |
 | `ref_link` | TEXT (nullable) | Referral link                     |
 
 ### `service_localizations`
 
-| Column       | Type | Description                        |
-| ------------ | ---- | ---------------------------------- |
-| `service_id` | UUID (FK) | References `services(id)`     |
-| `locale`     | TEXT | Locale code (e.g. `ru`, `ja`)      |
-| `name`       | TEXT | Localized service name             |
+Wide table — one column per locale, one row per service.
 
-Composite PK: `(service_id, locale)`. Trigram index on `name` for fuzzy search.
+| Column   | Type      | Description                   |
+| -------- | --------- | ----------------------------- |
+| `id`     | UUID (PK) | Same as service UUID          |
+| `bg`..`zh_hant` | TEXT | Localized name per locale (32 columns, nullable) |
+
+Trigram indexes on non-latin locale columns (ru, uk, ja, ko, zh_hans, zh_hant, th, hi, ka, el, bg, sr, kk).
 
 ## License
 
