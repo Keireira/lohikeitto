@@ -1,5 +1,5 @@
 mod db;
-mod error;
+mod response;
 mod logo;
 mod models;
 mod routes;

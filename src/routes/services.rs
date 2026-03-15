@@ -1,17 +1,16 @@
-use axum::Json;
 use axum::extract::{Path, State};
 use uuid::Uuid;
 
 use crate::AppState;
 use crate::db::services::get_service_by_id;
-use crate::error::ApiError;
 use crate::logo;
 use crate::models::service::ServiceDetail;
+use crate::response::{ApiError, ApiOk};
 
 pub async fn get_service(
     State(state): State<AppState>,
     Path(service_id): Path<Uuid>,
-) -> Result<Json<ServiceDetail>, ApiError> {
+) -> Result<ApiOk<ServiceDetail>, ApiError> {
     let row = get_service_by_id(&state.db, service_id)
         .await
         .map_err(|_| ApiError::InternalServerError)?
@@ -31,5 +30,5 @@ pub async fn get_service(
         created_at: row.created_at,
     };
 
-    Ok(Json(detail))
+    Ok(ApiOk(detail))
 }

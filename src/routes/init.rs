@@ -1,26 +1,23 @@
-use axum::Json;
 use axum::extract::{Query, State};
 use serde::Deserialize;
 
 use crate::AppState;
 use crate::db::services::get_services_by_locale;
-use crate::error::ApiError;
 use crate::logo;
-use crate::models::service::ServicePreload;
+use crate::models::service::ServiceDetail;
+use crate::response::{ApiError, ApiOk};
 
 #[derive(Debug, Deserialize)]
 pub struct InitQuery {
     pub locale: String,
-    pub category: Option<String>,
 }
 
-/// GET /init?locale=ja&category=Music
-/// Returns services popular in the given locale, with localized names.
-/// Used by the mobile app to preload service data.
+/// GET /init?locale=ja
+/// Returns services available in the given locale, same shape as GET /services/:id.
 pub async fn init(
     State(state): State<AppState>,
     Query(params): Query<InitQuery>,
-) -> Result<Json<Vec<ServicePreload>>, ApiError> {
+) -> Result<ApiOk<Vec<ServiceDetail>>, ApiError> {
     let locale = params.locale;
 
     if locale.is_empty() {
@@ -29,22 +26,26 @@ pub async fn init(
         ));
     }
 
-    let rows = get_services_by_locale(&state.db, &locale, params.category.as_deref())
+    let rows = get_services_by_locale(&state.db, &locale)
         .await
         .map_err(|_| ApiError::InternalServerError)?;
 
-    let results: Vec<ServicePreload> = rows
+    let results: Vec<ServiceDetail> = rows
         .into_iter()
-        .map(|row| ServicePreload {
+        .map(|row| ServiceDetail {
             id: row.id,
             name: row.name,
-            slug: row.slug.clone(),
-            category: row.category,
             colors: row.colors,
+            category: row.category,
             logo_url: logo::logo_url(&state.logo_base_url, &row.slug),
-            localized_name: row.localized_name,
+            links: row.links,
+            locales: row.locales,
+            localizations: row.localizations.unwrap_or(serde_json::json!({})),
+            default_locale: row.default_locale,
+            ref_link: row.ref_link,
+            created_at: row.created_at,
         })
         .collect();
 
-    Ok(Json(results))
+    Ok(ApiOk(results))
 }

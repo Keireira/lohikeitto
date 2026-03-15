@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::models::service::{PreloadRow, SearchRow, ServiceRow};
+use crate::models::service::{SearchRow, ServiceRow};
 
 fn locale_to_column(locale: &str) -> Option<&'static str> {
     match locale.to_lowercase().replace('-', "_").as_str() {
@@ -45,43 +45,59 @@ pub async fn search_services(
     pool: &PgPool,
     query: &str,
     count: i64,
-    locale: Option<&str>,
+    locales: &[&str],
 ) -> Result<Vec<SearchRow>, sqlx::Error> {
-    match locale.and_then(locale_to_column) {
-        Some(col) => {
-            let sql = format!(
-                "SELECT s.id, s.name, s.slug, s.colors FROM services s \
-                 LEFT JOIN service_localizations sl ON sl.id = s.localization_id \
-                 WHERE similarity(s.name, $1) > 0.1 \
-                    OR s.name ILIKE '%' || $1 || '%' \
-                    OR (sl.{col} IS NOT NULL AND ( \
-                        similarity(sl.{col}, $1) > 0.1 OR sl.{col} ILIKE '%' || $1 || '%' \
-                    )) \
-                 ORDER BY GREATEST( \
-                    similarity(s.name, $1), \
-                    COALESCE(similarity(sl.{col}, $1), 0) \
-                 ) DESC \
-                 LIMIT $2"
-            );
-            sqlx::query_as::<_, SearchRow>(&sql)
-                .bind(query)
-                .bind(count)
-                .fetch_all(pool)
-                .await
-        }
-        None => {
-            sqlx::query_as::<_, SearchRow>(
-                "SELECT s.id, s.name, s.slug, s.colors FROM services s \
-                 WHERE similarity(s.name, $1) > 0.1 \
-                    OR s.name ILIKE '%' || $1 || '%' \
-                 ORDER BY similarity(s.name, $1) DESC \
-                 LIMIT $2",
-            )
+    let cols: Vec<&str> = locales
+        .iter()
+        .filter_map(|l| locale_to_column(l))
+        .collect();
+
+    if cols.is_empty() {
+        sqlx::query_as::<_, SearchRow>(
+            "SELECT s.id, s.name, s.slug, s.colors FROM services s \
+             WHERE similarity(s.name, $1) > 0.1 \
+                OR s.name ILIKE '%' || $1 || '%' \
+             ORDER BY similarity(s.name, $1) DESC \
+             LIMIT $2",
+        )
+        .bind(query)
+        .bind(count)
+        .fetch_all(pool)
+        .await
+    } else {
+        let locale_where: Vec<String> = cols
+            .iter()
+            .map(|col| {
+                format!(
+                    "(sl.{col} IS NOT NULL AND (\
+                        similarity(sl.{col}, $1) > 0.1 OR sl.{col} ILIKE '%' || $1 || '%'\
+                    ))"
+                )
+            })
+            .collect();
+
+        let locale_similarities: Vec<String> = cols
+            .iter()
+            .map(|col| format!("COALESCE(similarity(sl.{col}, $1), 0)"))
+            .collect();
+
+        let sql = format!(
+            "SELECT s.id, s.name, s.slug, s.colors FROM services s \
+             LEFT JOIN service_localizations sl ON sl.id = s.id \
+             WHERE similarity(s.name, $1) > 0.1 \
+                OR s.name ILIKE '%' || $1 || '%' \
+                OR {} \
+             ORDER BY GREATEST(similarity(s.name, $1), {}) DESC \
+             LIMIT $2",
+            locale_where.join(" OR "),
+            locale_similarities.join(", "),
+        );
+
+        sqlx::query_as::<_, SearchRow>(&sql)
             .bind(query)
             .bind(count)
             .fetch_all(pool)
             .await
-        }
     }
 }
 
@@ -93,7 +109,7 @@ pub async fn get_service_by_id(
         "SELECT s.id, s.name, s.slug, s.category, s.colors, s.links, s.locales, \
                 s.default_locale, s.ref_link, s.created_at, \
                 (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
-                 FROM service_localizations sl WHERE sl.id = s.localization_id) AS localizations \
+                 FROM service_localizations sl WHERE sl.id = s.id) AS localizations \
          FROM services s WHERE s.id = $1",
     )
     .bind(id)
@@ -104,38 +120,19 @@ pub async fn get_service_by_id(
 pub async fn get_services_by_locale(
     pool: &PgPool,
     locale: &str,
-    category: Option<&str>,
-) -> Result<Vec<PreloadRow>, sqlx::Error> {
-    let col = locale_to_column(locale).unwrap_or("en");
+) -> Result<Vec<ServiceRow>, sqlx::Error> {
     let locale_filter = format!("[\"{locale}\"]");
 
-    match category {
-        Some(cat) => {
-            let sql = format!(
-                "SELECT s.id, s.name, s.slug, s.category, s.colors, sl.{col} AS localized_name \
-                 FROM services s \
-                 LEFT JOIN service_localizations sl ON sl.id = s.localization_id \
-                 WHERE s.locales @> $1::jsonb AND s.category = $2 \
-                 ORDER BY s.name"
-            );
-            sqlx::query_as::<_, PreloadRow>(&sql)
-                .bind(&locale_filter)
-                .bind(cat)
-                .fetch_all(pool)
-                .await
-        }
-        None => {
-            let sql = format!(
-                "SELECT s.id, s.name, s.slug, s.category, s.colors, sl.{col} AS localized_name \
-                 FROM services s \
-                 LEFT JOIN service_localizations sl ON sl.id = s.localization_id \
-                 WHERE s.locales @> $1::jsonb \
-                 ORDER BY s.category, s.name"
-            );
-            sqlx::query_as::<_, PreloadRow>(&sql)
-                .bind(&locale_filter)
-                .fetch_all(pool)
-                .await
-        }
-    }
+    sqlx::query_as::<_, ServiceRow>(
+        "SELECT s.id, s.name, s.slug, s.category, s.colors, s.links, s.locales, \
+                s.default_locale, s.ref_link, s.created_at, \
+                (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
+                 FROM service_localizations sl WHERE sl.id = s.id) AS localizations \
+         FROM services s \
+         WHERE s.locales @> $1::jsonb \
+         ORDER BY s.category, s.name",
+    )
+    .bind(&locale_filter)
+    .fetch_all(pool)
+    .await
 }

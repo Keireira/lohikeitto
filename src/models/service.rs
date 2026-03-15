@@ -46,24 +46,3 @@ pub struct ServiceDetail {
     pub ref_link: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
-
-#[derive(Debug, Serialize)]
-pub struct ServicePreload {
-    pub id: Uuid,
-    pub name: String,
-    pub slug: String,
-    pub category: String,
-    pub colors: serde_json::Value,
-    pub logo_url: String,
-    pub localized_name: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-pub struct PreloadRow {
-    pub id: Uuid,
-    pub name: String,
-    pub slug: String,
-    pub category: String,
-    pub colors: serde_json::Value,
-    pub localized_name: Option<String>,
-}

@@ -2,70 +2,81 @@
 
 Base URL: `https://soup.uha.app`
 
-All responses are JSON (UTF-8).
+All responses are JSON (UTF-8) with a unified envelope:
+
+```
+{ "status": "success", "data": T }        // on success
+{ "status": "error", "code": N, "message": "..." }  // on error
+```
 
 ## Endpoints
 
 ### GET /search
 
-Search services by name, phonetic aliases, or localized names (trigram search).
+Search services by name or localized names (trigram search).
 
 **Query parameters:**
 
-| Parameter | Type   | Required | Description                                                                 |
-| --------- | ------ | -------- | --------------------------------------------------------------------------- |
-| `q`       | string | Yes      | Search query                                                                |
-| `count`   | int    | No       | Number of results (default 10, max 10)                                      |
-| `locale`  | string | No       | Locale for alias search (`ru`, `ja`, `ko`, etc.). Omit to search all locales |
-
-**Response (200):**
-
-```json
-[
-  {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "Adguard",
-    "colors": {
-      "primary": "#354537"
-    },
-    "logo_url": "https://cdn.example.com/adguard.webp"
-  }
-]
-```
-
-Returns empty array `[]` if nothing found.
-
----
-
-### GET /services/:service_id
-
-Service details by UUID. Includes localized names from `service_localizations`.
+| Parameter | Type   | Required | Description                                                              |
+| --------- | ------ | -------- | ------------------------------------------------------------------------ |
+| `q`       | string | Yes      | Search query                                                             |
+| `count`   | int    | No       | Number of results (default 10, max 10)                                   |
+| `locales` | string | No       | Locale codes, repeatable (`locales=ru&locales=en`). Omit to search name only |
 
 **Response (200):**
 
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "Adguard",
-  "colors": {
-    "primary": "#354537"
-  },
-  "category": "VPN & Security",
-  "logo_url": "https://cdn.example.com/adguard.webp",
-  "links": {
-    "website": "https://adguard.com",
-    "x": "https://x.com/adguard",
-    "github": "https://github.com/adguard",
-    "linkedin": "https://linkedin.com/company/adguard"
-  },
-  "locales": ["de", "en", "es", "fr", "ja", "ko", "ru"],
-  "localizations": {
-    "ru": "Адгард",
-    "ja": "アドガード"
-  },
-  "default_locale": "en",
-  "ref_link": "https://adguard.com?ref=1234567890",
-  "created_at": "2025-03-15T00:00:00Z"
+	"status": "success",
+	"data": [
+		{
+			"id": "550e8400-e29b-41d4-a716-446655440000",
+			"name": "Adguard",
+			"colors": {
+				"primary": "#354537"
+			},
+			"logo_url": "https://cdn.example.com/adguard.webp"
+		}
+	]
+}
+```
+
+`data` is an empty array `[]` if nothing found.
+
+---
+
+### GET /services/:service_id
+
+Service details by UUID.
+
+**Response (200):**
+
+```json
+{
+	"status": "success",
+	"data": {
+		"id": "550e8400-e29b-41d4-a716-446655440000",
+		"name": "Adguard",
+		"colors": {
+			"primary": "#354537"
+		},
+		"category": "VPN & Security",
+		"logo_url": "https://cdn.example.com/adguard.webp",
+		"links": {
+			"website": "https://adguard.com",
+			"x": "https://x.com/adguard",
+			"github": "https://github.com/adguard",
+			"linkedin": "https://linkedin.com/company/adguard"
+		},
+		"locales": ["de", "en", "es", "fr", "ja", "ko", "ru"],
+		"localizations": {
+			"ru": "Адгард",
+			"ja": "アドガード"
+		},
+		"default_locale": "en",
+		"ref_link": "https://adguard.com?ref=1234567890",
+		"created_at": "2025-03-15T00:00:00Z"
+	}
 }
 ```
 
@@ -75,34 +86,42 @@ Service details by UUID. Includes localized names from `service_localizations`.
 
 ### GET /init
 
-Preload services popular in a given locale. Used by the mobile app to preload service data on first launch.
+Returns all services available in a given locale. Same shape as `GET /services/:service_id`, wrapped in an array.
 
 **Query parameters:**
 
-| Parameter  | Type   | Required | Description                                  |
-| ---------- | ------ | -------- | -------------------------------------------- |
-| `locale`   | string | Yes      | Locale code (`en`, `ja`, `ru`, etc.)         |
-| `category` | string | No       | Filter by category (e.g. `Music`)            |
+| Parameter | Type   | Required | Description                          |
+| --------- | ------ | -------- | ------------------------------------ |
+| `locale`  | string | Yes      | Locale code (`en`, `ja`, `ru`, etc.) |
 
 **Response (200):**
 
 ```json
-[
-  {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "Spotify",
-    "slug": "spotify",
-    "category": "Music",
-    "colors": {
-      "primary": "#1DB954"
-    },
-    "logo_url": "https://cdn.example.com/spotify.webp",
-    "localized_name": "スポティファイ"
-  }
-]
+{
+	"status": "success",
+	"data": [
+		{
+			"id": "550e8400-e29b-41d4-a716-446655440000",
+			"name": "Spotify",
+			"colors": {
+				"primary": "#1DB954"
+			},
+			"category": "Music",
+			"logo_url": "https://cdn.example.com/spotify.webp",
+			"links": {
+				"website": "https://spotify.com"
+			},
+			"locales": ["en", "ja", "ru"],
+			"localizations": {
+				"ja": "スポティファイ"
+			},
+			"default_locale": "en",
+			"ref_link": null,
+			"created_at": "2025-03-15T00:00:00Z"
+		}
+	]
+}
 ```
-
-`localized_name` is `null` if no localization exists for that locale.
 
 ---
 
@@ -112,7 +131,8 @@ Preload services popular in a given locale. Used by the mobile app to preload se
 
 ```json
 {
-  "status": "ok"
+	"status": "success",
+	"data": null
 }
 ```
 
@@ -122,14 +142,14 @@ Preload services popular in a given locale. Used by the mobile app to preload se
 
 ```json
 {
-  "status": "error",
-  "code": 400,
-  "message": "Missing required parameter: q"
+	"status": "error",
+	"code": 400,
+	"message": "Missing required parameter: q"
 }
 ```
 
-| Code | When                              |
-| ---- | --------------------------------- |
+| Code | When                                              |
+| ---- | ------------------------------------------------- |
 | 400  | Missing `q` in /search, missing `locale` in /init |
-| 404  | Service not found by ID           |
-| 500  | Internal error (database, etc.)   |
+| 404  | Service not found by ID                           |
+| 500  | Internal error (database, etc.)                   |

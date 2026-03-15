@@ -1,8 +1,23 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use serde::Serialize;
 use serde_json::json;
 
+// Success wrapper: { "status": "success", "data": T }
+pub struct ApiOk<T: Serialize>(pub T);
+
+impl<T: Serialize> IntoResponse for ApiOk<T> {
+    fn into_response(self) -> Response {
+        Json(json!({
+            "status": "success",
+            "data": self.0,
+        }))
+        .into_response()
+    }
+}
+
+// Error type
 #[derive(Debug)]
 pub enum ApiError {
     BadRequest(String),
