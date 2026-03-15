@@ -1,0 +1,12 @@
+.idea
+.claude
+.DS_Store
+*.pem
+
+# Rust
+target/
+Cargo.lock
+
+# Environment
+.env
+.env*.local

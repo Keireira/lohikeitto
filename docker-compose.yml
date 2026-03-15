@@ -1,0 +1,24 @@
+services:
+  lohikeitto:
+    image: registry.keireira.com/lohikeitto:latest
+    container_name: SHARKIE-SOUP
+    restart: unless-stopped
+    labels:
+      org.opencontainers.image.title: "Lohikeitto — Brand Meta API"
+      org.opencontainers.image.description: "lohikeitto.keireira.com"
+      org.opencontainers.image.authors: "Alena Dzhukich <mail@alena.red>"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    ports:
+      - 127.0.0.1:5555:3000
+    env_file:
+      - lohikeitto.env
+    networks:
+      - sharkie-network
+
+networks:
+  sharkie-network:
+    external: true
