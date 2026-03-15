@@ -6,13 +6,13 @@ pub struct ServiceRow {
     pub id: Uuid,
     pub name: String,
     pub slug: String,
+    pub category_id: Uuid,
     pub category: String,
     pub colors: serde_json::Value,
     pub links: serde_json::Value,
     pub localizations: Option<serde_json::Value>,
     pub default_locale: String,
     pub ref_link: Option<String>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -36,11 +36,11 @@ pub struct ServiceDetail {
     pub id: Uuid,
     pub name: String,
     pub colors: serde_json::Value,
+    pub category_id: Uuid,
     pub category: String,
     pub logo_url: String,
     pub links: serde_json::Value,
     pub localizations: serde_json::Value,
     pub default_locale: String,
     pub ref_link: Option<String>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
 }

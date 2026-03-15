@@ -106,11 +106,13 @@ pub async fn get_service_by_id(
     id: Uuid,
 ) -> Result<Option<ServiceRow>, sqlx::Error> {
     sqlx::query_as::<_, ServiceRow>(
-        "SELECT s.id, s.name, s.slug, s.category, s.colors, s.links, \
-                s.default_locale, s.ref_link, s.created_at, \
+        "SELECT s.id, s.name, s.slug, s.category_id, c.title AS category, \
+                s.colors, s.links, s.default_locale, s.ref_link, \
                 (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
                  FROM service_localizations sl WHERE sl.id = s.id) AS localizations \
-         FROM services s WHERE s.id = $1",
+         FROM services s \
+         JOIN categories c ON c.id = s.category_id \
+         WHERE s.id = $1",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -124,13 +126,18 @@ pub async fn get_services_by_locale(
     let locale_filter = format!("[\"{locale}\"]");
 
     sqlx::query_as::<_, ServiceRow>(
-        "SELECT s.id, s.name, s.slug, s.category, s.colors, s.links, \
-                s.default_locale, s.ref_link, s.created_at, \
-                (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
-                 FROM service_localizations sl WHERE sl.id = s.id) AS localizations \
-         FROM services s \
-         WHERE s.locales @> $1::jsonb \
-         ORDER BY s.category, s.name",
+        "SELECT id, name, slug, category_id, category, colors, links, \
+                default_locale, ref_link, localizations FROM ( \
+             SELECT s.id, s.name, s.slug, s.category_id, c.title AS category, \
+                    s.colors, s.links, s.default_locale, s.ref_link, \
+                    (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
+                     FROM service_localizations sl WHERE sl.id = s.id) AS localizations, \
+                    ROW_NUMBER() OVER (PARTITION BY s.category_id ORDER BY s.name) AS rn \
+             FROM services s \
+             JOIN categories c ON c.id = s.category_id \
+             WHERE s.locales @> $1::jsonb \
+         ) sub WHERE rn <= 20 \
+         ORDER BY category, name",
     )
     .bind(&locale_filter)
     .fetch_all(pool)

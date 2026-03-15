@@ -17,10 +17,10 @@ Search services by name or localized names (trigram search).
 
 **Query parameters:**
 
-| Parameter | Type   | Required | Description                                                              |
-| --------- | ------ | -------- | ------------------------------------------------------------------------ |
-| `q`       | string | Yes      | Search query                                                             |
-| `count`   | int    | No       | Number of results (default 10, max 10)                                   |
+| Parameter | Type   | Required | Description                                                                  |
+| --------- | ------ | -------- | ---------------------------------------------------------------------------- |
+| `q`       | string | Yes      | Search query                                                                 |
+| `count`   | int    | No       | Number of results (default 10, max 10)                                       |
 | `locales` | string | No       | Locale codes, repeatable (`locales=ru&locales=en`). Omit to search name only |
 
 **Response (200):**
@@ -60,6 +60,7 @@ Service details by UUID.
 		"colors": {
 			"primary": "#354537"
 		},
+		"category_id": "44444444-0000-0000-0000-000000000011",
 		"category": "VPN & Security",
 		"logo_url": "https://cdn.example.com/adguard.webp",
 		"links": {
@@ -68,14 +69,12 @@ Service details by UUID.
 			"github": "https://github.com/adguard",
 			"linkedin": "https://linkedin.com/company/adguard"
 		},
-		"locales": ["de", "en", "es", "fr", "ja", "ko", "ru"],
 		"localizations": {
 			"ru": "Адгард",
 			"ja": "アドガード"
 		},
 		"default_locale": "en",
-		"ref_link": "https://adguard.com?ref=1234567890",
-		"created_at": "2025-03-15T00:00:00Z"
+		"ref_link": "https://adguard.com?ref=1234567890"
 	}
 }
 ```
@@ -106,18 +105,17 @@ Returns all services available in a given locale. Same shape as `GET /services/:
 			"colors": {
 				"primary": "#1DB954"
 			},
+			"category_id": "44444444-0000-0000-0000-000000000002",
 			"category": "Music",
 			"logo_url": "https://cdn.example.com/spotify.webp",
 			"links": {
 				"website": "https://spotify.com"
 			},
-			"locales": ["en", "ja", "ru"],
 			"localizations": {
 				"ja": "スポティファイ"
 			},
 			"default_locale": "en",
-			"ref_link": null,
-			"created_at": "2025-03-15T00:00:00Z"
+			"ref_link": null
 		}
 	]
 }
