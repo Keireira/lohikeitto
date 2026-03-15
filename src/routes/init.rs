@@ -39,7 +39,6 @@ pub async fn init(
             category: row.category,
             logo_url: logo::logo_url(&state.logo_base_url, &row.slug),
             links: row.links,
-            locales: row.locales,
             localizations: row.localizations.unwrap_or(serde_json::json!({})),
             default_locale: row.default_locale,
             ref_link: row.ref_link,

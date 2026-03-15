@@ -106,7 +106,7 @@ pub async fn get_service_by_id(
     id: Uuid,
 ) -> Result<Option<ServiceRow>, sqlx::Error> {
     sqlx::query_as::<_, ServiceRow>(
-        "SELECT s.id, s.name, s.slug, s.category, s.colors, s.links, s.locales, \
+        "SELECT s.id, s.name, s.slug, s.category, s.colors, s.links, \
                 s.default_locale, s.ref_link, s.created_at, \
                 (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
                  FROM service_localizations sl WHERE sl.id = s.id) AS localizations \
@@ -124,7 +124,7 @@ pub async fn get_services_by_locale(
     let locale_filter = format!("[\"{locale}\"]");
 
     sqlx::query_as::<_, ServiceRow>(
-        "SELECT s.id, s.name, s.slug, s.category, s.colors, s.links, s.locales, \
+        "SELECT s.id, s.name, s.slug, s.category, s.colors, s.links, \
                 s.default_locale, s.ref_link, s.created_at, \
                 (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
                  FROM service_localizations sl WHERE sl.id = s.id) AS localizations \
