@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Copy docker-compose to server
-        uses: appleboy/scp-action@v1
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOSTNAME }}
           username: ${{ secrets.AUTH_USER }}
@@ -41,7 +41,7 @@ jobs:
           target: "/opt/lohikeitto"
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOSTNAME }}
           username: ${{ secrets.AUTH_USER }}
@@ -50,8 +50,6 @@ jobs:
             cd /opt/lohikeitto
             docker network inspect sharkie-network >/dev/null 2>&1 || { echo "ERROR: sharkie-network not found. Start sharkie first."; exit 1; }
             docker login registry.keireira.com -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" -p "${{ secrets.DOCKER_REGISTRY_PASSWORD }}"
-            docker compose pull lohikeitto
+            docker compose pull
             docker compose up -d --remove-orphans
-            docker compose ps
-            docker compose logs --tail=30 lohikeitto
             docker image prune -f
