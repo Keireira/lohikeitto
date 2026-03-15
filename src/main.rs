@@ -44,6 +44,7 @@ async fn main() {
         .route("/health", get(routes::health::health_check))
         .route("/search", get(routes::search::search))
         .route("/services/{service_id}", get(routes::services::get_service))
+        .route("/init", get(routes::init::init))
         .with_state(state);
 
     let addr = format!("{host}:{port}");

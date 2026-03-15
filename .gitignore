@@ -9,3 +9,5 @@ target/
 # Environment
 .env
 .env*.local
+
+frontend/

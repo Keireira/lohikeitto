@@ -3,7 +3,7 @@ use axum::extract::{Path, State};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::db::services::get_service_by_id;
+use crate::db::services::{get_service_by_id, get_service_localizations};
 use crate::error::ApiError;
 use crate::models::service::ServiceDetail;
 use crate::logo;
@@ -17,6 +17,10 @@ pub async fn get_service(
         .map_err(|_| ApiError::InternalServerError)?
         .ok_or(ApiError::NotFound)?;
 
+    let localizations = get_service_localizations(&state.db, row.id)
+        .await
+        .map_err(|_| ApiError::InternalServerError)?;
+
     let detail = ServiceDetail {
         id: row.id,
         name: row.name,
@@ -25,6 +29,8 @@ pub async fn get_service(
         aliases: row.aliases,
         logo_url: logo::logo_url(&state.logo_base_url, &row.slug),
         links: row.links,
+        locales: row.locales,
+        localizations,
         ref_link: row.ref_link,
         created_at: row.created_at,
     };
