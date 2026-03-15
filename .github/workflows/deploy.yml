@@ -49,6 +49,11 @@ jobs:
           script: |
             cd /opt/lohikeitto
             docker network inspect sharkie-network >/dev/null 2>&1 || { echo "ERROR: sharkie-network not found. Start sharkie first."; exit 1; }
+
+            # Ensure database exists
+            docker exec SHARKIE-DB psql -U sharkie -tc "SELECT 1 FROM pg_database WHERE datname='lohikeitto'" | grep -q 1 \
+              || docker exec SHARKIE-DB psql -U sharkie -c "CREATE DATABASE lohikeitto;"
+
             docker login registry.keireira.com -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" -p "${{ secrets.DOCKER_REGISTRY_PASSWORD }}"
             docker compose pull
             docker compose up -d --remove-orphans
