@@ -1,6 +1,6 @@
 # Lohikeitto API
 
-Base URL: `https://lohikeitto.keireira.com`
+Base URL: `https://soup.uha.com`
 
 All responses are JSON (UTF-8).
 
