@@ -9,17 +9,17 @@ All responses are JSON (UTF-8) with a unified envelope:
 { "status": "error", "code": N, "message": "..." }  // on error
 ```
 
-## Endpoints
+## Public endpoints
 
 ### GET /search
 
-Search services by name or localized names (trigram search).
+Search services by name or localized names (trigram search). Falls back to Brandfetch when local results are insufficient.
 
 **Query parameters:**
 
 | Parameter | Type   | Required | Description                                                                  |
 | --------- | ------ | -------- | ---------------------------------------------------------------------------- |
-| `q`       | string | Yes      | Search query                                                                 |
+| `q`       | string | Yes      | Search query (max 200 chars)                                                 |
 | `count`   | int    | No       | Number of results (default 10, max 10)                                       |
 | `locales` | string | No       | Locale codes, repeatable (`locales=ru&locales=en`). Omit to search name only |
 
@@ -30,18 +30,22 @@ Search services by name or localized names (trigram search).
 	"status": "success",
 	"data": [
 		{
+			"source": "local",
 			"id": "550e8400-e29b-41d4-a716-446655440000",
 			"name": "Adguard",
-			"colors": {
-				"primary": "#354537"
-			},
 			"logo_url": "https://cdn.example.com/adguard.webp"
+		},
+		{
+			"source": "brandfetch",
+			"name": "AdGuard",
+			"domain": "adguard.com",
+			"icon": "https://cdn.brandfetch.io/idbeBCDlpy/w/128/h/128/fallback/lettermark/icon.webp?c=..."
 		}
 	]
 }
 ```
 
-`data` is an empty array `[]` if nothing found.
+`data` is an empty array `[]` if nothing found. Each result has a `source` field: `"local"` for database results, `"brandfetch"` for fallback results.
 
 ---
 
@@ -64,22 +68,18 @@ Service details by UUID.
 		"category": "VPN & Security",
 		"logo_url": "https://cdn.example.com/adguard.webp",
 		"links": {
-			"website": "https://adguard.com",
-			"x": "https://x.com/adguard",
-			"github": "https://github.com/adguard",
-			"linkedin": "https://linkedin.com/company/adguard"
+			"website": "https://adguard.com"
 		},
 		"localizations": {
 			"ru": "Адгард",
 			"ja": "アドガード"
 		},
-		"default_locale": "en",
 		"ref_link": "https://adguard.com?ref=1234567890"
 	}
 }
 ```
 
-`ref_link` may be `null`. `localizations` is a `{ locale: name }` object (only non-null locales included).
+`category_id` is omitted when not set. `ref_link` is omitted when `null`. `localizations` is a `{ locale: name }` object (only non-null locales included).
 
 ---
 
@@ -89,9 +89,9 @@ Returns all services available in a given locale. Same shape as `GET /services/:
 
 **Query parameters:**
 
-| Parameter | Type   | Required | Description                          |
-| --------- | ------ | -------- | ------------------------------------ |
-| `locale`  | string | Yes      | Locale code (`en`, `ja`, `ru`, etc.) |
+| Parameter | Type   | Required | Description                              |
+| --------- | ------ | -------- | ---------------------------------------- |
+| `locale`  | string | Yes      | Locale code (`en`, `ja`, `ru`, max 10ch) |
 
 **Response (200):**
 
@@ -108,14 +108,10 @@ Returns all services available in a given locale. Same shape as `GET /services/:
 			"category_id": "44444444-0000-0000-0000-000000000002",
 			"category": "Music",
 			"logo_url": "https://cdn.example.com/spotify.webp",
-			"links": {
-				"website": "https://spotify.com"
-			},
+			"links": {},
 			"localizations": {
 				"ja": "スポティファイ"
-			},
-			"default_locale": "en",
-			"ref_link": null
+			}
 		}
 	]
 }
@@ -125,14 +121,67 @@ Returns all services available in a given locale. Same shape as `GET /services/:
 
 ### GET /health
 
+Returns `"ok"` with 200 if database is reachable, 503 otherwise.
+
+---
+
+## Admin endpoints
+
+All admin endpoints require `Authorization: Bearer <ADMIN_TOKEN>` header. Returns 401 without valid token.
+
+### POST /services/verify
+
+Checks each unverified service against Brandfetch search API. If found, sets `verified=true` and fills `domain`. Throttled (150-400ms per request).
+
 **Response (200):**
 
 ```json
 {
 	"status": "success",
-	"data": null
+	"data": {
+		"total": 2375,
+		"verified_count": 2100,
+		"not_found_count": 250,
+		"error_count": 25,
+		"verified": [
+			{ "name": "Spotify", "domain": "spotify.com" }
+		],
+		"not_found": ["Some Unknown Service"],
+		"errors": [
+			{ "name": "Foo", "error": "HTTP 429" }
+		]
+	}
 }
 ```
+
+---
+
+### POST /logos/sync
+
+Downloads logos for all services with `domain` set. Fetches from Brandfetch CDN and logo.dev, uploads to R2. Skips files already present. Throttled (150-400ms per request).
+
+R2 paths: `bf/logos/{slug}.webp`, `bf/symbols/{slug}.webp`, `logodev/{slug}.webp`.
+
+**Response (200):**
+
+```json
+{
+	"status": "success",
+	"data": [
+		{
+			"slug": "adguard",
+			"domain": "adguard.com",
+			"result": {
+				"bf_logo": true,
+				"bf_symbol": true,
+				"logodev": true
+			}
+		}
+	]
+}
+```
+
+`*_existed: true` fields appear when the file was already in R2.
 
 ---
 
@@ -146,8 +195,10 @@ Returns all services available in a given locale. Same shape as `GET /services/:
 }
 ```
 
-| Code | When                                              |
-| ---- | ------------------------------------------------- |
-| 400  | Missing `q` in /search, missing `locale` in /init |
-| 404  | Service not found by ID                           |
-| 500  | Internal error (database, etc.)                   |
+| Code | When                                                  |
+| ---- | ----------------------------------------------------- |
+| 400  | Invalid/missing parameters                            |
+| 401  | Missing or invalid admin token on admin endpoints     |
+| 404  | Service not found by ID                               |
+| 408  | Request timeout (30s)                                 |
+| 500  | Internal error (database, storage, etc.)              |

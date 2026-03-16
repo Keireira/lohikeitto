@@ -1,54 +1,90 @@
+mod app;
+mod config;
 mod db;
-mod response;
+mod dto;
+mod error;
 mod logo;
 mod models;
 mod routes;
+mod s3;
+mod services;
 
-use axum::Router;
-use axum::routing::get;
-use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
 use tokio::net::TcpListener;
-
-#[derive(Clone)]
-pub struct AppState {
-    pub db: sqlx::PgPool,
-    pub logo_base_url: String,
-}
 
 #[tokio::main]
 async fn main() {
-    dotenvy::dotenv().ok();
+    init_tracing();
 
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    let logo_base_url = std::env::var("LOGO_BASE_URL").expect("LOGO_BASE_URL must be set");
+    let config = config::Config::from_env().expect("Failed to load config");
 
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
+    let pool = db::pool::create_pool(&config.database_url)
         .await
-        .expect("Failed to connect to database");
+        .expect("Failed to create DB pool");
 
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations");
 
-    let state = AppState {
-        db: pool,
-        logo_base_url,
+    let bucket = s3::client::create_bucket(&config).expect("Failed to create S3 bucket");
+
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("Failed to create HTTP client");
+
+    let state = app::AppState {
+        db: pool.clone(),
+        http,
+        bucket,
+        logo_base_url: config.logo_base_url,
+        brandfetch_client_id: config.brandfetch_client_id,
+        logodev_token: config.logodev_token,
+        admin_token: config.admin_token,
     };
 
-    let app = Router::new()
-        .route("/health", get(routes::health::health_check))
-        .route("/search", get(routes::search::search))
-        .route("/services/{service_id}", get(routes::services::get_service))
-        .route("/init", get(routes::init::init))
-        .with_state(state);
+    let router = app::create_router(state, &config.cors_origin);
 
-    let addr = format!("{host}:{port}");
-    println!("Listening on {addr}");
+    let addr = format!("{}:{}", config.host, config.port);
+    tracing::info!("listening on {addr}");
+
     let listener = TcpListener::bind(&addr).await.expect("Failed to bind");
-    axum::serve(listener, app).await.expect("Server error");
+    axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .expect("Server error");
+
+    pool.close().await;
+    tracing::info!("shutdown complete");
+}
+
+fn init_tracing() {
+    use tracing_subscriber::{fmt, EnvFilter};
+
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,sqlx=warn,sqlx::postgres::connection=error,tower_http=debug"));
+
+    let json_logs = std::env::var("LOG_JSON").is_ok();
+
+    if json_logs {
+        fmt()
+            .with_env_filter(filter)
+            .with_target(false)
+            .json()
+            .init();
+    } else {
+        fmt()
+            .with_env_filter(filter)
+            .with_target(false)
+            .with_timer(fmt::time::ChronoLocal::new("%H:%M:%S".to_string()))
+            .init();
+    }
+}
+
+async fn shutdown_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to listen for ctrl+c");
+    tracing::info!("shutdown signal received");
 }

@@ -54,7 +54,7 @@ pub async fn search_services(
 
     if cols.is_empty() {
         sqlx::query_as::<_, SearchRow>(
-            "SELECT s.id, s.name, s.slug, s.colors FROM services s \
+            "SELECT s.id, s.name, s.slug FROM services s \
              WHERE similarity(s.name, $1) > 0.1 \
                 OR s.name ILIKE '%' || $1 || '%' \
              ORDER BY similarity(s.name, $1) DESC \
@@ -82,7 +82,7 @@ pub async fn search_services(
             .collect();
 
         let sql = format!(
-            "SELECT s.id, s.name, s.slug, s.colors FROM services s \
+            "SELECT s.id, s.name, s.slug FROM services s \
              LEFT JOIN service_localizations sl ON sl.id = s.id \
              WHERE similarity(s.name, $1) > 0.1 \
                 OR s.name ILIKE '%' || $1 || '%' \
@@ -107,11 +107,11 @@ pub async fn get_service_by_id(
 ) -> Result<Option<ServiceRow>, sqlx::Error> {
     sqlx::query_as::<_, ServiceRow>(
         "SELECT s.id, s.name, s.slug, s.category_id, c.title AS category, \
-                s.colors, s.links, s.default_locale, s.ref_link, \
+                s.colors, s.links, s.ref_link, \
                 (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
                  FROM service_localizations sl WHERE sl.id = s.id) AS localizations \
          FROM services s \
-         JOIN categories c ON c.id = s.category_id \
+         LEFT JOIN categories c ON c.id = s.category_id \
          WHERE s.id = $1",
     )
     .bind(id)
@@ -123,18 +123,19 @@ pub async fn get_services_by_locale(
     pool: &PgPool,
     locale: &str,
 ) -> Result<Vec<ServiceRow>, sqlx::Error> {
-    let locale_filter = format!("[\"{locale}\"]");
+    let locale_filter = serde_json::to_string(&[locale])
+        .expect("locale string serialization cannot fail");
 
     sqlx::query_as::<_, ServiceRow>(
         "SELECT id, name, slug, category_id, category, colors, links, \
-                default_locale, ref_link, localizations FROM ( \
+                ref_link, localizations FROM ( \
              SELECT s.id, s.name, s.slug, s.category_id, c.title AS category, \
-                    s.colors, s.links, s.default_locale, s.ref_link, \
+                    s.colors, s.links, s.ref_link, \
                     (SELECT jsonb_strip_nulls(to_jsonb(sl)) - 'id' \
                      FROM service_localizations sl WHERE sl.id = s.id) AS localizations, \
                     ROW_NUMBER() OVER (PARTITION BY s.category_id ORDER BY s.name) AS rn \
              FROM services s \
-             JOIN categories c ON c.id = s.category_id \
+             LEFT JOIN categories c ON c.id = s.category_id \
              WHERE s.locales @> $1::jsonb \
          ) sub WHERE rn <= 20 \
          ORDER BY category, name",
