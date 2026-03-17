@@ -1,6 +1,6 @@
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
-use axum::routing::{delete, get, put};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -18,8 +18,8 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/services/{id}", put(update_service))
         .route("/admin/services/{id}", delete(delete_service))
         .route("/admin/services/{id}/approve", put(approve_service))
-        .route("/admin/services/{id}/sync-logos", axum::routing::post(sync_service_logos))
-        .route("/admin/services/{id}/save-logo", axum::routing::post(save_single_logo))
+        .route("/admin/services/{id}/sync-logos", post(sync_service_logos))
+        .route("/admin/services/{id}/save-logo", post(save_single_logo))
         .route("/admin/categories", get(list_categories))
         .route("/admin/export-sql", get(export_sql))
 }

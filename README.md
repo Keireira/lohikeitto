@@ -1,8 +1,12 @@
-# Soup
+# Lohikeitto (Soup)
+
+Service catalog API with search, logos, and categories.
 
 ```bash
 # 1. Set up environment
 cp .env.example .env
+
+# 2. Edit .env with your configuration
 
 # 2. Run (migrations run automatically on startup)
 cargo run
@@ -31,76 +35,16 @@ cargo run
 docker compose up -d
 ```
 
-Requires an external `sharkie-network` Docker network and a running PostgreSQL instance.
+Requires an external `sharkie-network` Docker network and a running PostgreSQL instance (check `Keireira/sharkie` repo)
 
-## API
+## Make commands
 
-See [API.md](API.md) for full endpoint documentation.
-
-| Endpoint               | Auth  | Description                                       |
-| ---------------------- | ----- | ------------------------------------------------- |
-| `GET /search?q=`       | No    | Fuzzy search by name with Brandfetch fallback     |
-| `GET /services/:id`    | No    | Service detail                                    |
-| `GET /init?country=`   | No    | Preload services available in a country           |
-| `GET /health`          | No    | Health check (DB liveness)                        |
-| `POST /services/verify`| Admin | Verify services via Brandfetch, fill domains      |
-| `POST /logos/sync`     | Admin | Download missing logos to R2                      |
-
-## Setup flow
-
-```bash
-# 1. Generate admin token
-openssl rand -base64 32
-
-# 2. Start the server
-cargo run
-
-# 3. Verify services & populate domains (~15 min)
-curl -X POST http://localhost:3000/services/verify \
-  -H "Authorization: Bearer <ADMIN_TOKEN>"
-
-# 4. Review not_found list, remove invalid services
-
-# 5. Download logos to R2 (~25-40 min)
-curl -X POST http://localhost:3000/logos/sync \
-  -H "Authorization: Bearer <ADMIN_TOKEN>"
-```
-
-## Database schema
-
-### `categories`
-
-| Column  | Type      | Description         |
-| ------- | --------- | ------------------- |
-| `id`    | UUID (PK) | Category identifier |
-| `title` | TEXT      | Category name       |
-
-### `services`
-
-| Column        | Type            | Description                             |
-| ------------- | --------------- | --------------------------------------- |
-| `id`          | UUID (PK)       | Service identifier                      |
-| `name`        | TEXT            | English canonical name                  |
-| `slug`        | TEXT (unique)   | URL-safe identifier, logo filename      |
-| `domain`      | TEXT (nullable) | Domain for Brandfetch/logo.dev lookups  |
-| `verified`    | BOOLEAN         | Verified via Brandfetch (default false) |
-| `category_id` | UUID (nullable) | FK to categories                        |
-| `colors`      | JSONB           | `{ primary: "#hex" }`                   |
-| `links`       | JSONB           | `{ website, x, github, ... }`           |
-| `countries`   | JSONB           | `["en","ja",...]` country codes         |
-| `ref_link`    | TEXT (nullable) | Referral link                           |
-| `created_at`  | TIMESTAMPTZ     | Row creation timestamp                  |
-
-## Security
-
-- Admin endpoints protected by Bearer token (constant-time comparison)
-- Security headers: `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`, `Referrer-Policy`
-- Request timeout: 30s
-- Body size limit: 2MB
-- Input validation: query length, country length, count clamping
-- CORS: configurable origin (`CORS_ORIGIN`)
-- Structured JSON logging via `tracing`
-- Request IDs (`X-Request-Id`) for tracing
+| Command      | Description                      |
+| ------------ | -------------------------------- |
+| `make dev`   | Run the API server               |
+| `make admin` | Run the admin panel (port 3001)  |
+| `make docs`  | Run the documentation site       |
+| `make build` | Build release binary             |
 
 ## License
 

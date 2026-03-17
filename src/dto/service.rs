@@ -67,14 +67,3 @@ pub struct SearchQuery {
 pub struct InitQuery {
     pub country: String,
 }
-
-#[derive(Debug, Serialize)]
-pub struct VerifyReport {
-    pub total: usize,
-    pub verified_count: usize,
-    pub not_found_count: usize,
-    pub error_count: usize,
-    pub verified: Vec<serde_json::Value>,
-    pub not_found: Vec<String>,
-    pub errors: Vec<serde_json::Value>,
-}

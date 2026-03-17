@@ -1,0 +1,15 @@
+{
+  "title": "API Reference",
+  "pages": [
+    "---Public---",
+    "index",
+    "search",
+    "services",
+    "init",
+    "health",
+    "---Admin---",
+    "admin",
+    "---Errors---",
+    "errors"
+  ]
+}
