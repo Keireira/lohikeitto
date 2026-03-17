@@ -13,15 +13,14 @@ All responses are JSON (UTF-8) with a unified envelope:
 
 ### GET /search
 
-Search services by name or localized names (trigram search). Falls back to Brandfetch when local results are insufficient.
+Search services by name (trigram search). Falls back to Brandfetch when local results are insufficient.
 
 **Query parameters:**
 
-| Parameter | Type   | Required | Description                                                                  |
-| --------- | ------ | -------- | ---------------------------------------------------------------------------- |
-| `q`       | string | Yes      | Search query (max 200 chars)                                                 |
-| `count`   | int    | No       | Number of results (default 10, max 10)                                       |
-| `locales` | string | No       | Locale codes, repeatable (`locales=ru&locales=en`). Omit to search name only |
+| Parameter | Type   | Required | Description                    |
+| --------- | ------ | -------- | ------------------------------ |
+| `q`       | string | Yes      | Search query (max 200 chars)   |
+| `count`   | int    | No       | Number of results (default 10, max 10) |
 
 **Response (200):**
 
@@ -70,28 +69,24 @@ Service details by UUID.
 		"links": {
 			"website": "https://adguard.com"
 		},
-		"localizations": {
-			"ru": "Адгард",
-			"ja": "アドガード"
-		},
 		"ref_link": "https://adguard.com?ref=1234567890"
 	}
 }
 ```
 
-`category_id` is omitted when not set. `ref_link` is omitted when `null`. `localizations` is a `{ locale: name }` object (only non-null locales included).
+`category_id` is omitted when not set. `ref_link` is omitted when `null`.
 
 ---
 
 ### GET /init
 
-Returns all services available in a given locale. Same shape as `GET /services/:service_id`, wrapped in an array.
+Returns services available in a given country. Same shape as `GET /services/:service_id`, wrapped in an array. Limited to 20 services per category.
 
 **Query parameters:**
 
-| Parameter | Type   | Required | Description                              |
-| --------- | ------ | -------- | ---------------------------------------- |
-| `locale`  | string | Yes      | Locale code (`en`, `ja`, `ru`, max 10ch) |
+| Parameter | Type   | Required | Description                                |
+| --------- | ------ | -------- | ------------------------------------------ |
+| `country` | string | Yes      | Country code (`en`, `ja`, `ru`, max 10 ch) |
 
 **Response (200):**
 
@@ -108,10 +103,7 @@ Returns all services available in a given locale. Same shape as `GET /services/:
 			"category_id": "44444444-0000-0000-0000-000000000002",
 			"category": "Music",
 			"logo_url": "https://cdn.example.com/spotify.webp",
-			"links": {},
-			"localizations": {
-				"ja": "スポティファイ"
-			}
+			"links": {}
 		}
 	]
 }
@@ -128,6 +120,42 @@ Returns `"ok"` with 200 if database is reachable, 503 otherwise.
 ## Admin endpoints
 
 All admin endpoints require `Authorization: Bearer <ADMIN_TOKEN>` header. Returns 401 without valid token.
+
+### GET /admin/services?filter=
+
+List services. Filter: `all` (default), `verified`, `unverified`.
+
+### GET /admin/services/:id
+
+Full service details for admin panel.
+
+### PUT /admin/services/:id
+
+Update service fields (name, slug, domain, category_id, colors, links, countries, ref_link).
+
+### DELETE /admin/services/:id
+
+Delete a service.
+
+### PUT /admin/services/:id/approve
+
+Set `verified = true`.
+
+### POST /admin/services/:id/sync-logos
+
+Download logos from Brandfetch and logo.dev, upload to R2.
+
+### POST /admin/services/:id/save-logo
+
+Save a single logo type (`bf_logo`, `bf_symbol`, `logodev`) to R2.
+
+### GET /admin/categories
+
+List all categories.
+
+### GET /admin/export-sql?filter=
+
+Export services as SQL INSERT statement. Accepts `filter` (`all`, `verified`, `unverified`) or `ids` (comma-separated UUIDs). Returns the SQL in the response `data` field.
 
 ### POST /services/verify
 

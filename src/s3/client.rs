@@ -26,19 +26,23 @@ pub fn create_bucket(config: &Config) -> Result<Box<Bucket>, AppError> {
     Ok(bucket)
 }
 
-pub async fn exists(bucket: &Bucket, key: &str) -> bool {
-    bucket.head_object(key).await.is_ok()
+pub async fn exists(bucket: &Bucket, key: &str) -> Result<bool, AppError> {
+    match bucket.head_object(key).await {
+        Ok(_) => Ok(true),
+        Err(s3::error::S3Error::HttpFailWithBody(404, _)) => Ok(false),
+        Err(e) => Err(AppError::S3(e.to_string())),
+    }
 }
 
-pub async fn upload(bucket: &Bucket, key: &str, bytes: &[u8], content_type: &str) -> bool {
-    match bucket
+pub async fn upload(
+    bucket: &Bucket,
+    key: &str,
+    bytes: &[u8],
+    content_type: &str,
+) -> Result<(), AppError> {
+    bucket
         .put_object_with_content_type(key, bytes, content_type)
         .await
-    {
-        Ok(_) => true,
-        Err(e) => {
-            tracing::error!(key, %e, "R2 upload failed");
-            false
-        }
-    }
+        .map_err(|e| AppError::S3(e.to_string()))?;
+    Ok(())
 }

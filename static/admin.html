@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Soup Admin</title>
+		<style>
+			* {
+				margin: 0;
+				padding: 0;
+				box-sizing: border-box;
+			}
+			body {
+				font-family: -apple-system, system-ui, sans-serif;
+				background: #f5f5f5;
+				color: #222;
+				height: 100vh;
+				display: flex;
+				flex-direction: column;
+				font-size: 15px;
+			}
+			header {
+				padding: 14px 24px;
+				background: #fff;
+				border-bottom: 1px solid #ddd;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			header h1 {
+				font-size: 18px;
+				font-weight: 700;
+			}
+			.filters {
+				display: flex;
+				gap: 6px;
+			}
+			.filters button {
+				padding: 6px 14px;
+				border: 1px solid #ccc;
+				border-radius: 6px;
+				background: #fff;
+				color: #666;
+				cursor: pointer;
+				font-size: 13px;
+			}
+			.filters button.active {
+				background: #222;
+				color: #fff;
+				border-color: #222;
+			}
+			.counter {
+				font-size: 13px;
+				color: #999;
+			}
+			main {
+				flex: 1;
+				display: flex;
+				overflow: hidden;
+			}
+			.sidebar {
+				width: 260px;
+				border-right: 1px solid #ddd;
+				overflow-y: auto;
+				flex-shrink: 0;
+				background: #fff;
+			}
+			.sidebar-item {
+				padding: 10px 14px;
+				cursor: pointer;
+				border-bottom: 1px solid #f0f0f0;
+				font-size: 14px;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			.sidebar-item:hover {
+				background: #f8f8f8;
+			}
+			.sidebar-item.active {
+				background: #eef4ff;
+				border-left: 3px solid #3b82f6;
+			}
+			.sidebar-item .name {
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+			.sidebar-item .status {
+				font-size: 11px;
+				flex-shrink: 0;
+				margin-left: 8px;
+			}
+			.sidebar-item .status.verified {
+				color: #16a34a;
+			}
+			.sidebar-item .status.unverified {
+				color: #ccc;
+			}
+			.detail {
+				flex: 1;
+				padding: 24px;
+				overflow-y: auto;
+				background: #fafafa;
+			}
+			.card {
+				max-width: 900px;
+			}
+			.section {
+				background: #fff;
+				border: 1px solid #e5e5e5;
+				border-radius: 10px;
+				padding: 20px;
+				margin-bottom: 16px;
+			}
+			.section h3 {
+				font-size: 13px;
+				text-transform: uppercase;
+				color: #999;
+				letter-spacing: 0.5px;
+				margin-bottom: 14px;
+			}
+			.field {
+				margin-bottom: 10px;
+				display: flex;
+				gap: 12px;
+				align-items: center;
+			}
+			.field-label {
+				font-size: 13px;
+				color: #888;
+				width: 90px;
+				flex-shrink: 0;
+			}
+			.field-value {
+				font-size: 15px;
+				flex: 1;
+				padding: 4px 8px;
+				border-radius: 6px;
+				border: 1px solid transparent;
+				outline: none;
+				min-height: 28px;
+			}
+			.editing .field-value[contenteditable] {
+				border-color: #ccc;
+				background: #fff;
+			}
+			.field-value[contenteditable]:focus {
+				border-color: #3b82f6;
+			}
+			.color-row {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+			}
+			.color-swatch {
+				width: 32px;
+				height: 32px;
+				border-radius: 6px;
+				border: 1px solid #ddd;
+				cursor: pointer;
+				flex-shrink: 0;
+			}
+			.color-input {
+				border: none;
+				background: none;
+				padding: 0;
+				width: 0;
+				height: 0;
+				visibility: hidden;
+				position: absolute;
+			}
+			.logos-section {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+				gap: 16px;
+			}
+			.logo-card {
+				text-align: center;
+				padding: 12px;
+				border: 1px solid #e5e5e5;
+				border-radius: 8px;
+				background: #fff;
+			}
+			.logo-card img {
+				max-width: 120px;
+				max-height: 120px;
+				display: block;
+				margin: 0 auto 8px;
+				background: repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 50%/16px 16px;
+				border-radius: 4px;
+			}
+			.logo-card .logo-label {
+				font-size: 11px;
+				color: #999;
+				margin-bottom: 6px;
+			}
+			.logo-card .logo-missing {
+				width: 120px;
+				height: 120px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				color: #ccc;
+				font-size: 12px;
+				margin: 0 auto 8px;
+				border: 1px dashed #ddd;
+				border-radius: 4px;
+			}
+			.logo-card button {
+				font-size: 12px;
+				padding: 4px 12px;
+				border: 1px solid #ccc;
+				border-radius: 4px;
+				background: #fff;
+				cursor: pointer;
+				margin-top: 4px;
+			}
+			.logo-card button:hover {
+				background: #f0f0f0;
+			}
+			.logo-card button.syncing {
+				opacity: 0.5;
+				pointer-events: none;
+			}
+			.loc-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+				gap: 4px;
+			}
+			.loc-item {
+				display: flex;
+				gap: 8px;
+				font-size: 14px;
+				padding: 4px 6px;
+				border-radius: 4px;
+				align-items: center;
+			}
+			.loc-item .loc-key {
+				color: #999;
+				width: 48px;
+				flex-shrink: 0;
+				font-size: 12px;
+			}
+			.loc-item .loc-val {
+				color: #333;
+				flex: 1;
+				min-height: 22px;
+			}
+			.loc-item .loc-val:empty::after {
+				content: "—";
+				color: #ddd;
+			}
+			.editing .loc-val[contenteditable] {
+				border: 1px solid #ddd;
+				border-radius: 4px;
+				padding: 2px 6px;
+				background: #fff;
+				outline: none;
+			}
+			.editing .loc-val[contenteditable]:focus {
+				border-color: #3b82f6;
+			}
+			.actions {
+				display: flex;
+				gap: 8px;
+				margin-bottom: 16px;
+			}
+			.actions button {
+				padding: 8px 18px;
+				border-radius: 6px;
+				font-size: 14px;
+				cursor: pointer;
+				border: 1px solid #ccc;
+				background: #fff;
+			}
+			.actions button:hover {
+				background: #f0f0f0;
+			}
+			.actions .btn-approve {
+				background: #16a34a;
+				color: #fff;
+				border-color: #16a34a;
+			}
+			.actions .btn-approve:hover {
+				background: #15803d;
+			}
+			.actions .btn-delete {
+				color: #dc2626;
+				border-color: #fca5a5;
+			}
+			.actions .btn-delete:hover {
+				background: #fef2f2;
+			}
+			.actions .btn-edit {
+				background: #3b82f6;
+				color: #fff;
+				border-color: #3b82f6;
+			}
+			.actions .btn-edit:hover {
+				background: #2563eb;
+			}
+			.actions .btn-save {
+				background: #16a34a;
+				color: #fff;
+				border-color: #16a34a;
+			}
+			.shortcuts {
+				padding: 10px 24px;
+				background: #fff;
+				border-top: 1px solid #ddd;
+				display: flex;
+				gap: 20px;
+				font-size: 13px;
+				color: #999;
+				flex-wrap: wrap;
+			}
+			.shortcuts kbd {
+				background: #f0f0f0;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+				padding: 2px 7px;
+				color: #555;
+				font-family: inherit;
+				font-size: 12px;
+			}
+			.toast {
+				position: fixed;
+				bottom: 70px;
+				right: 24px;
+				background: #16a34a;
+				color: #fff;
+				padding: 10px 20px;
+				border-radius: 8px;
+				font-size: 14px;
+				opacity: 0;
+				transition: opacity 0.3s;
+				pointer-events: none;
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+			}
+			.toast.error {
+				background: #dc2626;
+			}
+			.toast.show {
+				opacity: 1;
+			}
+			.login {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				height: 100vh;
+				background: #f5f5f5;
+			}
+			.login-box {
+				text-align: center;
+			}
+			.login-box h2 {
+				margin-bottom: 16px;
+				font-size: 22px;
+			}
+			.login-box input {
+				background: #fff;
+				border: 1px solid #ccc;
+				color: #222;
+				padding: 10px 20px;
+				border-radius: 8px;
+				font-size: 16px;
+				width: 320px;
+			}
+			.locale-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+			.locale-tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #e8f4e8; color: #16a34a; border-radius: 14px; font-size: 12px; font-weight: 500; }
+			.locale-tag .remove-tag { cursor: pointer; font-size: 14px; line-height: 1; color: #999; }
+			.locale-tag .remove-tag:hover { color: #dc2626; }
+			.locale-add { position: relative; display: inline-block; }
+			.locale-add button { padding: 4px 10px; border: 1px dashed #ccc; border-radius: 14px; background: none; cursor: pointer; font-size: 12px; color: #999; }
+			.locale-add button:hover { border-color: #999; color: #555; }
+			.locale-dropdown { position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 240px; overflow-y: auto; z-index: 10; min-width: 180px; display: none; }
+			.locale-dropdown.open { display: block; }
+			.locale-dropdown-item { padding: 6px 12px; cursor: pointer; font-size: 13px; }
+			.locale-dropdown-item:hover { background: #f0f0f0; }
+			.empty {
+				color: #bbb;
+				padding: 40px;
+				text-align: center;
+				font-size: 16px;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="login" class="login">
+			<div class="login-box">
+				<h2>Soup Admin</h2>
+				<input type="password" id="token-input" placeholder="Admin token" autofocus />
+			</div>
+		</div>
+
+		<div id="app" style="display: none; flex-direction: column; height: 100vh">
+			<header>
+				<h1>Soup Admin</h1>
+				<div class="filters">
+					<button data-filter="all" class="active">All</button>
+					<button data-filter="unverified">Unverified</button>
+					<button data-filter="verified">Verified</button>
+					<button data-filter="starred">Starred</button>
+				</div>
+				<div style="display:flex;align-items:center;gap:12px">
+					<button onclick="exportSQL()" style="padding:6px 14px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#666;cursor:pointer;font-size:13px">Export .sql</button>
+					<span class="counter" id="counter"></span>
+				</div>
+			</header>
+			<main>
+				<div class="sidebar" id="sidebar"></div>
+				<div class="detail" id="detail"><div class="empty">Select a service</div></div>
+			</main>
+			<div class="shortcuts">
+				<span><kbd>j</kbd>/<kbd>k</kbd> navigate</span>
+				<span><kbd>a</kbd> approve</span>
+				<span><kbd>f</kbd> star</span>
+				<span><kbd>e</kbd> edit</span>
+				<span><kbd>s</kbd> save</span>
+				<span><kbd>d</kbd> delete</span>
+				<span><kbd>Esc</kbd> cancel</span>
+			</div>
+		</div>
+
+		<div class="toast" id="toast"></div>
+
+		<script>
+			const LOCALES = [
+				"bg","cs","da","de","el","en","es","fi","fil","fr","hi","hu",
+				"is_","it","ja","ka","kk","ko","nb","nl","pl","pt_br","ro",
+				"ru","sk","sr","sv","th","uk","vi","zh_hans","zh_hant",
+			];
+			const LOCALE_NAMES = {
+				bg:"Bulgarian",cs:"Czech",da:"Danish",de:"German",el:"Greek",
+				en:"English",es:"Spanish",fi:"Finnish",fil:"Filipino",fr:"French",
+				hi:"Hindi",hu:"Hungarian",is_:"Icelandic",it:"Italian",ja:"Japanese",
+				ka:"Georgian",kk:"Kazakh",ko:"Korean",nb:"Norwegian",nl:"Dutch",
+				pl:"Polish",pt_br:"Portuguese (BR)",ro:"Romanian",ru:"Russian",
+				sk:"Slovak",sr:"Serbian",sv:"Swedish",th:"Thai",uk:"Ukrainian",
+				vi:"Vietnamese",zh_hans:"Chinese (Simplified)",zh_hant:"Chinese (Traditional)",
+			};
+			// Countries use same codes as LOCALES
+			const LOCALE_TO_REGION = {
+				bg:"BG",cs:"CZ",da:"DK",de:"DE",el:"GR",en:"GB",es:"ES",
+				fi:"FI",fil:"PH",fr:"FR",hi:"IN",hu:"HU",is_:"IS",it:"IT",
+				ja:"JP",ka:"GE",kk:"KZ",ko:"KR",nb:"NO",nl:"NL",pl:"PL",
+				pt_br:"BR",ro:"RO",ru:"RU",sk:"SK",sr:"RS",sv:"SE",th:"TH",
+				uk:"UA",vi:"VN",zh_hans:"CN",zh_hant:"TW",
+			};
+			function countryName(code) {
+				try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code); }
+				catch { return code; }
+			}
+
+			let TOKEN = sessionStorage.getItem("soup_token") || "",
+				CONF = {},
+				CATEGORIES = [];
+			let services = [],
+				currentIdx = -1,
+				currentService = null,
+				editing = false,
+				currentFilter = "all";
+
+			const starred = new Set(JSON.parse(localStorage.getItem("soup_starred") || "[]"));
+			function saveStarred() { localStorage.setItem("soup_starred", JSON.stringify([...starred])); }
+
+			const $ = (s) => document.querySelector(s);
+			const $$ = (s) => document.querySelectorAll(s);
+
+			async function startSession(token) {
+				TOKEN = token;
+				const c = await api("/admin/config");
+				CONF = c.data;
+				const cats = await api("/admin/categories");
+				CATEGORIES = cats.data;
+				sessionStorage.setItem("soup_token", token);
+				$("#login").style.display = "none";
+				$("#app").style.display = "flex";
+				loadList("all");
+			}
+
+			if (TOKEN) {
+				startSession(TOKEN).catch(() => {
+					sessionStorage.removeItem("soup_token");
+					TOKEN = "";
+				});
+			}
+
+			$("#token-input").addEventListener("keydown", async (e) => {
+				if (e.key !== "Enter") return;
+				try {
+					await startSession(e.target.value);
+				} catch {
+					toast("Invalid token", true);
+				}
+			});
+
+			$$(".filters button").forEach((btn) =>
+				btn.addEventListener("click", () => {
+					$$(".filters button").forEach((b) => b.classList.remove("active"));
+					btn.classList.add("active");
+					loadList(btn.dataset.filter);
+				}),
+			);
+
+			async function api(path, method = "GET", body = null) {
+				const opts = { method, headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" } };
+				if (body) opts.body = JSON.stringify(body);
+				const res = await fetch(path, opts);
+				if (!res.ok) throw new Error(`${res.status}`);
+				return res.json();
+			}
+
+			async function loadList(filter) {
+				currentFilter = filter;
+				if (filter === "starred") {
+					const res = await api(`/admin/services?filter=all`);
+					services = res.data.filter(s => starred.has(s.id));
+				} else {
+					const res = await api(`/admin/services?filter=${filter}`);
+					services = res.data.filter(s => !starred.has(s.id));
+				}
+				renderSidebar();
+				$("#counter").textContent = `${services.length} services`;
+				if (services.length > 0) selectService(0);
+				else {
+					currentIdx = -1;
+					currentService = null;
+					$("#detail").innerHTML = '<div class="empty">No services</div>';
+				}
+			}
+
+			function renderSidebar() {
+				$("#sidebar").innerHTML = services
+					.map(
+						(s, i) =>
+							`<div class="sidebar-item${i === currentIdx ? " active" : ""}" data-idx="${i}">
+      <span class="name">${starred.has(s.id) ? "&#9733; " : ""}${esc(s.name)}</span>
+      <span class="status ${s.verified ? "verified" : "unverified"}">${s.verified ? "&#10003;" : "&#9675;"}</span>
+    </div>`,
+					)
+					.join("");
+				$$(".sidebar-item").forEach((el) => el.addEventListener("click", () => selectService(+el.dataset.idx)));
+			}
+
+			async function selectService(idx) {
+				if (idx < 0 || idx >= services.length) return;
+				editing = false;
+				currentIdx = idx;
+				renderSidebar();
+				$(".sidebar-item.active")?.scrollIntoView({ block: "nearest" });
+				try {
+					const res = await api(`/admin/services/${services[idx].id}`);
+					currentService = res.data;
+					renderDetail();
+				} catch {
+					$("#detail").innerHTML = '<div class="empty">Error loading</div>';
+				}
+			}
+
+			function renderDetail() {
+				const s = currentService,
+					locs = s.localizations || {};
+				const ce = editing ? 'contenteditable="true"' : "";
+				const cls = editing ? "detail editing" : "detail";
+				const primary = s.colors?.primary || "#cccccc";
+
+				const logoBase = CONF.logo_base_url || "";
+				const bfId = CONF.brandfetch_client_id || "";
+				const domain = s.domain || "";
+
+				const ldToken = CONF.logodev_token || "";
+				const cdnLogo = `${logoBase}/${s.slug}.webp`;
+				const bfLogo = domain ? `https://cdn.brandfetch.io/domain/${domain}/w/1024/h/1024?c=${bfId}` : "";
+				const bfSymbol = domain ? `https://cdn.brandfetch.io/domain/${domain}/w/1024/h/1024/theme/light/symbol?c=${bfId}` : "";
+				const ldLogo = domain ? `https://img.logo.dev/${domain}?token=${ldToken}&format=webp&size=1024&retina=true` : "";
+
+				$("#detail").className = cls;
+				$("#detail").innerHTML = `
+    <div class="card">
+      <div class="actions">
+        <button onclick="toggleStar()" style="font-size:18px;border:none;background:none;cursor:pointer">${starred.has(s.id) ? "&#9733;" : "&#9734;"}</button>
+        ${!s.verified ? `<button class="btn-approve" onclick="approveService()">&#10003; Approve</button>` : ""}
+        ${
+					!editing
+						? `<button class="btn-edit" onclick="toggleEdit()">Edit</button>`
+						: `<button class="btn-save" onclick="saveService()">Save</button>
+             <button onclick="editing=false;renderDetail()">Cancel</button>`
+				}
+        <button class="btn-delete" onclick="deleteService()">Delete</button>
+        ${domain ? `<button onclick="syncLogos()">Sync logos</button>` : ""}
+      </div>
+
+      <div class="section">
+        <h3>Service</h3>
+        <div class="field"><span class="field-label">Name</span><span class="field-value" data-field="name" ${ce}>${esc(s.name)}</span></div>
+        <div class="field"><span class="field-label">Slug</span><span class="field-value" data-field="slug" ${ce}>${esc(s.slug)}</span></div>
+        <div class="field"><span class="field-label">Domain</span>${editing
+          ? `<span class="field-value" data-field="domain" contenteditable="true">${esc(domain)}</span>`
+          : `<span class="field-value">${domain ? `<a href="https://${esc(domain)}" target="_blank" rel="noopener" style="color:#3b82f6">${esc(domain)}</a>` : '—'}</span>`
+        }</div>
+        <div class="field"><span class="field-label">Category</span>${editing
+          ? `<select id="category-select" style="font-size:15px;padding:4px 8px;border:1px solid #ccc;border-radius:6px;background:#fff">
+              <option value="">— None —</option>
+              ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id === s.category_id ? 'selected' : ''}>${esc(c.title)}</option>`).join('')}
+            </select>`
+          : `<span class="field-value">${esc(s.category || "—")}</span>`
+        }</div>
+        <div class="field"><span class="field-label">Verified</span><span class="field-value">${s.verified ? "&#10003; Yes" : "&#9675; No"}</span></div>
+        <div class="field"><span class="field-label">Ref link</span><span class="field-value" data-field="ref_link" ${ce}>${esc(s.ref_link || "")}</span></div>
+        <div class="field">
+          <span class="field-label">Color</span>
+          <div class="color-row">
+            <div class="color-swatch" id="color-swatch" style="background:${esc(primary)}" onclick="document.getElementById('color-pick').click()"></div>
+            <span class="field-value" id="color-hex" data-field="colors" ${ce}>${esc(primary)}</span>
+            <input type="color" id="color-pick" class="color-input" value="${esc(primary)}" onchange="updateColor(this.value)">
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Locales</span>
+          <div class="locale-tags">
+            ${Object.keys(locs).sort().map(code => {
+              const name = LOCALE_NAMES[code] || LOCALE_NAMES[code.replace('-','_').toLowerCase()] || code;
+              return `<span class="locale-tag">${esc(name)}</span>`;
+            }).join('') || '<span style="color:#ccc">No localizations</span>'}
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Countries</span>
+          <div>
+            <div class="locale-tags" id="country-tags">
+              ${(s.countries || []).map(code => {
+                const region = LOCALE_TO_REGION[code] || code.toUpperCase();
+                const name = countryName(region);
+                return `<span class="locale-tag" style="background:#e8eef4;color:#3b82f6" data-code="${esc(code)}">${esc(name)}${editing ? ` <span class="remove-tag" onclick="removeCountry('${esc(code)}')">&times;</span>` : ''}</span>`;
+              }).join('')}
+              ${editing ? `<span class="locale-add">
+                <button onclick="toggleCountryDropdown()">+ Add</button>
+                <div class="locale-dropdown" id="country-dropdown">
+                  ${LOCALES.filter(l => !(s.countries || []).includes(l)).map(l => {
+                    const region = LOCALE_TO_REGION[l] || l.toUpperCase();
+                    return `<div class="locale-dropdown-item" onclick="addCountry('${l}')">${countryName(region)} (${l})</div>`;
+                  }).join('')}
+                </div>
+              </span>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Logos</h3>
+        <div class="logos-section">
+          <div class="logo-card">
+            <div class="logo-label">CDN (current)</div>
+            <img src="${cdnLogo}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+            <div class="logo-missing" style="display:none">No logo</div>
+          </div>
+          ${
+						bfLogo
+							? `
+          <div class="logo-card">
+            <div class="logo-label">Brandfetch logo</div>
+            <img src="${bfLogo}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+            <div class="logo-missing" style="display:none">Not found</div>
+            <button onclick="saveLogo('bf_logo')">Save to R2</button>
+          </div>
+          <div class="logo-card">
+            <div class="logo-label">Brandfetch symbol</div>
+            <img src="${bfSymbol}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+            <div class="logo-missing" style="display:none">Not found</div>
+            <button onclick="saveLogo('bf_symbol')">Save to R2</button>
+          </div>
+          `
+							: '<div class="logo-card"><div class="logo-missing">Set domain to see BF logos</div></div>'
+					}
+          ${
+						ldLogo
+							? `
+          <div class="logo-card">
+            <div class="logo-label">logo.dev</div>
+            <img src="${ldLogo}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+            <div class="logo-missing" style="display:none">Not found</div>
+            <button onclick="saveLogo('logodev')">Save to R2</button>
+          </div>
+          `
+							: ""
+					}
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Localizations</h3>
+        <div class="loc-grid">
+          ${LOCALES.map(
+						(k) => `
+            <div class="loc-item">
+              <span class="loc-key">${k}</span>
+              <span class="loc-val" data-loc="${k}" ${ce}>${esc(locs[k] || "")}</span>
+            </div>
+          `,
+					).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+			}
+
+			function updateColor(hex) {
+				$("#color-swatch").style.background = hex;
+				$("#color-hex").textContent = hex;
+			}
+
+			async function approveService() {
+				if (!currentService) return;
+				try {
+					await api(`/admin/services/${currentService.id}/approve`, "PUT");
+					services[currentIdx].verified = true;
+					currentService.verified = true;
+					renderDetail();
+					renderSidebar();
+					toast("Approved");
+				} catch (e) {
+					toast("Error: " + e.message, true);
+				}
+			}
+
+			async function deleteService() {
+				if (!currentService || !confirm(`Delete "${currentService.name}"?`)) return;
+				try {
+					await api(`/admin/services/${currentService.id}`, "DELETE");
+					services.splice(currentIdx, 1);
+					toast("Deleted");
+					$("#counter").textContent = `${services.length} services`;
+					if (currentIdx >= services.length) currentIdx = services.length - 1;
+					if (services.length > 0) {
+						renderSidebar();
+						selectService(currentIdx);
+					} else {
+						renderSidebar();
+						$("#detail").innerHTML = '<div class="empty">No more services</div>';
+					}
+				} catch (e) {
+					toast("Error: " + e.message, true);
+				}
+			}
+
+			function cleanDomain(v) {
+				return v.replace(/^https?:\/\//, '').replace(/\/+$/, '').trim();
+			}
+
+			async function saveService() {
+				if (!currentService || !editing) return;
+				const body = {},
+					locs = {};
+
+				$$(".field-value[data-field]").forEach((el) => {
+					const f = el.dataset.field,
+						v = el.textContent.trim();
+					if (f === "colors") {
+						body.colors = { primary: v };
+					} else if (f === "domain") {
+						body[f] = cleanDomain(v) || null;
+					} else {
+						body[f] = v || null;
+					}
+				});
+
+				$$(".loc-val[data-loc]").forEach((el) => {
+					const v = el.textContent.trim();
+					if (v) locs[el.dataset.loc] = v;
+				});
+				if (Object.keys(locs).length > 0) body.localizations = locs;
+
+				const catSelect = document.getElementById('category-select');
+				if (catSelect && catSelect.value) body.category_id = catSelect.value;
+
+				if (currentService.countries) body.countries = currentService.countries;
+
+				try {
+					await api(`/admin/services/${currentService.id}`, "PUT", body);
+					editing = false;
+					const res = await api(`/admin/services/${currentService.id}`);
+					currentService = res.data;
+					services[currentIdx].name = currentService.name;
+					services[currentIdx].domain = currentService.domain;
+					renderDetail();
+					renderSidebar();
+					toast("Saved");
+				} catch (e) {
+					toast("Error: " + e.message, true);
+				}
+			}
+
+			async function saveLogo(logoType) {
+				if (!currentService) return;
+				toast(`Saving ${logoType}...`);
+				try {
+					await api(`/admin/services/${currentService.id}/save-logo`, "POST", { logo_type: logoType });
+					toast(`${logoType} saved to R2`);
+				} catch (e) {
+					toast("Error: " + e.message, true);
+				}
+			}
+
+			async function syncLogos() {
+				if (!currentService) return;
+				toast("Syncing logos...");
+				try {
+					const res = await api(`/admin/services/${currentService.id}/sync-logos`, "POST");
+					const r = res.data;
+					const parts = [];
+					if (r.bf_logo) parts.push("BF logo");
+					if (r.bf_symbol) parts.push("BF symbol");
+					if (r.logodev) parts.push("logo.dev");
+					if (r.bf_logo_existed) parts.push("BF logo (existed)");
+					if (r.bf_symbol_existed) parts.push("BF symbol (existed)");
+					if (r.logodev_existed) parts.push("logo.dev (existed)");
+					toast(parts.length ? parts.join(", ") : "No logos synced");
+					renderDetail();
+				} catch (e) {
+					toast("Sync error: " + e.message, true);
+				}
+			}
+
+			function toggleStar() {
+				if (!currentService) return;
+				const id = currentService.id;
+				if (starred.has(id)) { starred.delete(id); toast("Unstarred"); }
+				else { starred.add(id); toast("Starred"); }
+				saveStarred();
+				renderDetail();
+				renderSidebar();
+			}
+
+			function removeCountry(code) {
+				if (!currentService || !editing) return;
+				currentService.countries = (currentService.countries || []).filter(c => c !== code);
+				renderDetail();
+			}
+
+			function addCountry(code) {
+				if (!currentService || !editing) return;
+				if (!currentService.countries) currentService.countries = [];
+				if (!currentService.countries.includes(code)) {
+					currentService.countries.push(code);
+					currentService.countries.sort();
+				}
+				renderDetail();
+			}
+
+			function toggleCountryDropdown() {
+				const dd = document.getElementById('country-dropdown');
+				if (dd) dd.classList.toggle('open');
+			}
+
+			function removeLocale(code) {
+				if (!currentService || !editing) return;
+				currentService.locales = (currentService.locales || []).filter(c => c !== code);
+				renderDetail();
+			}
+
+			function addLocale(code) {
+				if (!currentService || !editing) return;
+				if (!currentService.locales) currentService.locales = [];
+				if (!currentService.locales.includes(code)) {
+					currentService.locales.push(code);
+					currentService.locales.sort();
+				}
+				renderDetail();
+			}
+
+			function toggleLocaleDropdown() {
+				const dd = document.getElementById('locale-dropdown');
+				if (dd) dd.classList.toggle('open');
+			}
+
+			document.addEventListener('click', (e) => {
+				if (!e.target.closest('.locale-add')) {
+					document.querySelectorAll('.locale-dropdown').forEach(dd => dd.classList.remove('open'));
+				}
+			});
+
+			function toggleEdit() {
+				editing = !editing;
+				renderDetail();
+				if (editing) {
+					const f = $(".field-value[contenteditable]");
+					if (f) f.focus();
+				}
+			}
+
+			document.addEventListener("keydown", (e) => {
+				if (!$("#app") || $("#app").style.display === "none") return;
+				if (editing && e.target.hasAttribute("contenteditable")) {
+					if (e.key === "Escape") {
+						editing = false;
+						renderDetail();
+					}
+					return;
+				}
+				switch (e.key) {
+					case "j":
+					case "ArrowDown":
+						e.preventDefault();
+						selectService(currentIdx + 1);
+						break;
+					case "k":
+					case "ArrowUp":
+						e.preventDefault();
+						selectService(currentIdx - 1);
+						break;
+					case "a":
+						approveService();
+						break;
+					case "f":
+						toggleStar();
+						break;
+					case "d":
+						deleteService();
+						break;
+					case "e":
+						toggleEdit();
+						break;
+					case "s":
+						e.preventDefault();
+						saveService();
+						break;
+					case "Escape":
+						if (editing) {
+							editing = false;
+							renderDetail();
+						}
+						break;
+				}
+			});
+
+			function toast(msg, error = false) {
+				const t = $("#toast");
+				t.textContent = msg;
+				t.className = `toast show${error ? " error" : ""}`;
+				setTimeout(() => (t.className = "toast"), 2500);
+			}
+			function esc(s) {
+				const d = document.createElement("div");
+				d.textContent = s;
+				return d.innerHTML;
+			}
+
+			async function exportSQL() {
+				try {
+					let url = `/admin/export-sql?filter=${currentFilter}`;
+					if (currentFilter === "starred" && starred.size > 0) {
+						url = `/admin/export-sql?ids=${[...starred].join(",")}`;
+					}
+					const res = await api(url);
+					const sql = res.data;
+					const blob = new Blob([sql], { type: "text/sql;charset=utf-8" });
+					const a = document.createElement("a");
+					a.href = URL.createObjectURL(blob);
+					a.download = `services_${currentFilter}_${new Date().toISOString().slice(0,10)}.sql`;
+					a.click();
+					URL.revokeObjectURL(a.href);
+					toast("SQL exported");
+				} catch (e) {
+					toast("Export error: " + e.message, true);
+				}
+			}
+		</script>
+	</body>
+</html>

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::routing::post;
@@ -11,8 +13,9 @@ use crate::error::{ApiOk, AppError};
 use crate::routes::check_admin;
 use crate::services::brandfetch;
 
-/// Check if Brandfetch name is a reasonable match for our service name.
-/// Normalizes both to lowercase, strips non-alphanumeric, checks containment.
+/// Strict name matching: normalize both, require exact match or that
+/// the shorter string equals a word-boundary-aligned prefix/suffix of the longer.
+/// Rejects "A1" matching "a16z", "ADT" matching "Adtelligent", etc.
 fn name_matches(ours: &str, theirs: &str) -> bool {
     let norm = |s: &str| -> String {
         s.to_lowercase()
@@ -25,8 +28,16 @@ fn name_matches(ours: &str, theirs: &str) -> bool {
     if a.is_empty() || b.is_empty() {
         return false;
     }
-    // exact match after normalization, or one contains the other
-    a == b || a.contains(&b) || b.contains(&a)
+    if a == b {
+        return true;
+    }
+    // shorter must be at least 4 chars for containment to be reliable
+    let (short, long) = if a.len() <= b.len() { (&a, &b) } else { (&b, &a) };
+    if short.len() < 4 {
+        return false;
+    }
+    // require the shorter to be a prefix of the longer (e.g. "adguard" in "adguardvpn")
+    long.starts_with(short.as_str())
 }
 
 pub fn routes() -> Router<AppState> {
@@ -34,9 +45,13 @@ pub fn routes() -> Router<AppState> {
 }
 
 async fn throttle() {
-    let ms = rand::rng().random_range(150..=400);
-    sleep(std::time::Duration::from_millis(ms)).await;
+    // Brandfetch: 200 req / 5 min = 1 req / 1.5s
+    let ms = rand::rng().random_range(1600..=1850);
+    sleep(Duration::from_millis(ms)).await;
 }
+
+const MAX_RETRIES: u32 = 3;
+const BACKOFF_SECS: u64 = 60;
 
 async fn verify_services(
     State(state): State<AppState>,
@@ -58,7 +73,33 @@ async fn verify_services(
 
     for (i, (id, name)) in rows.iter().enumerate() {
         throttle().await;
-        match brandfetch::search(&state.http, &state.brandfetch_client_id, name).await {
+
+        let mut result = None;
+        for attempt in 0..=MAX_RETRIES {
+            match brandfetch::search(&state.http, &state.brandfetch_client_id, name).await {
+                Ok(entries) => {
+                    result = Some(Ok(entries));
+                    break;
+                }
+                Err(e) if e.status() == Some(reqwest::StatusCode::TOO_MANY_REQUESTS) => {
+                    if attempt < MAX_RETRIES {
+                        tracing::warn!(
+                            i = i + 1, total, name, attempt = attempt + 1,
+                            "rate limited, backing off {BACKOFF_SECS}s"
+                        );
+                        sleep(Duration::from_secs(BACKOFF_SECS)).await;
+                    } else {
+                        result = Some(Err(e));
+                    }
+                }
+                Err(e) => {
+                    result = Some(Err(e));
+                    break;
+                }
+            }
+        }
+
+        match result.expect("retry loop must produce a result") {
             Ok(entries) => {
                 let matched = entries.iter().find(|e| name_matches(name, &e.name));
                 if let Some(entry) = matched {

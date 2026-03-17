@@ -15,7 +15,8 @@ pub fn routes() -> Router<AppState> {
 }
 
 async fn throttle() {
-    let ms = rand::rng().random_range(150..=400);
+    // Brandfetch: 200 req / 5 min = 1 req / 1.5s
+    let ms = rand::rng().random_range(1600..=1850);
     sleep(std::time::Duration::from_millis(ms)).await;
 }
 

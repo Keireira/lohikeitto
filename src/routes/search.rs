@@ -27,9 +27,8 @@ async fn search(
     }
 
     let count = params.count.unwrap_or(10).clamp(1, 10);
-    let locales: Vec<&str> = params.locales.iter().map(|s| s.as_str()).collect();
 
-    let rows = search_services(&state.db, &q, count, &locales).await?;
+    let rows = search_services(&state.db, &q, count).await?;
 
     let mut results: Vec<SearchResult> = rows
         .into_iter()

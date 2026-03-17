@@ -3,7 +3,7 @@ use axum::routing::get;
 use axum::Router;
 
 use crate::app::AppState;
-use crate::db::services::get_services_by_locale;
+use crate::db::services::get_services_by_country;
 use crate::dto::service::{InitQuery, ServiceDetail};
 use crate::error::{ApiOk, AppError};
 use crate::logo;
@@ -16,13 +16,13 @@ async fn init(
     State(state): State<AppState>,
     Query(params): Query<InitQuery>,
 ) -> Result<ApiOk<Vec<ServiceDetail>>, AppError> {
-    if params.locale.is_empty() || params.locale.len() > 10 {
+    if params.country.is_empty() || params.country.len() > 10 {
         return Err(AppError::BadRequest(
-            "Invalid locale parameter".into(),
+            "Invalid country parameter".into(),
         ));
     }
 
-    let rows = get_services_by_locale(&state.db, &params.locale).await?;
+    let rows = get_services_by_country(&state.db, &params.country).await?;
 
     let results: Vec<ServiceDetail> = rows
         .into_iter()

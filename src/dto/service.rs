@@ -13,7 +13,6 @@ pub struct ServiceDetail {
     pub category: String,
     pub logo_url: String,
     pub links: serde_json::Value,
-    pub localizations: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ref_link: Option<String>,
 }
@@ -28,7 +27,6 @@ impl ServiceDetail {
             category: row.category.unwrap_or_default(),
             logo_url,
             links: row.links,
-            localizations: row.localizations.unwrap_or(serde_json::json!({})),
             ref_link: row.ref_link,
         }
     }
@@ -63,13 +61,11 @@ impl SearchResult {
 pub struct SearchQuery {
     pub q: Option<String>,
     pub count: Option<i64>,
-    #[serde(default)]
-    pub locales: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct InitQuery {
-    pub locale: String,
+    pub country: String,
 }
 
 #[derive(Debug, Serialize)]

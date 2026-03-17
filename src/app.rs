@@ -54,16 +54,20 @@ pub fn create_router(state: AppState, cors_origin: &str) -> Router {
 }
 
 fn cors_layer(origin: &str) -> CorsLayer {
+    let methods = [Method::GET, Method::POST, Method::PUT, Method::DELETE];
+    let headers = [header::CONTENT_TYPE, header::AUTHORIZATION];
+
     if origin == "*" {
         CorsLayer::new()
             .allow_origin(tower_http::cors::Any)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+            .allow_methods(methods)
+            .allow_headers(headers)
+            .max_age(Duration::from_secs(3600))
     } else {
         CorsLayer::new()
             .allow_origin(origin.parse::<HeaderValue>().expect("Invalid CORS_ORIGIN"))
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+            .allow_methods(methods)
+            .allow_headers(headers)
             .max_age(Duration::from_secs(3600))
     }
 }
