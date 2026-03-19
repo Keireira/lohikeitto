@@ -1,0 +1,97 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Lohikeitto",
+    "description": "Brand Meta API",
+    "license": {
+      "name": ""
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://soup.uha.app",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "Service healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service degraded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "db"
+        ],
+        "properties": {
+          "db": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

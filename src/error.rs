@@ -1,73 +1,65 @@
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
-use serde::Serialize;
+use axum::{
+    Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use serde_json::json;
 
+pub const MAX_RESPONSE_SIZE: usize = 1024 * 1024;
+
 #[derive(Debug)]
-pub enum AppError {
-    BadRequest(String),
-    Unauthorized,
-    NotFound(String),
-    Internal(anyhow::Error),
-    Sqlx(sqlx::Error),
-    S3(String),
+pub enum ApiError {
+    NotFound,
+    Internal(String),
+    InvalidInput(String),
+    PayloadTooLarge,
 }
 
-impl IntoResponse for AppError {
+impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, message) = match &self {
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".into()),
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
-            AppError::Internal(err) => {
-                tracing::error!(?err, "internal error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
+        let (status, message) = match self {
+            ApiError::NotFound => (StatusCode::NOT_FOUND, "Data not found".to_string()),
+            ApiError::Internal(msg) => {
+                tracing::error!(error = %msg, "internal server error");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
-            AppError::Sqlx(err) => {
-                tracing::error!(?err, "database error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
-            }
-            AppError::S3(msg) => {
-                tracing::error!(msg, "s3 error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Storage error".into())
-            }
+            ApiError::InvalidInput(msg) => (StatusCode::BAD_REQUEST, msg),
+            ApiError::PayloadTooLarge => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                format!("Response exceeds {} KB limit", MAX_RESPONSE_SIZE / 1024),
+            ),
         };
 
-        let body = json!({
+        metrics::counter!(
+            "http_errors_total",
+            "status" => status.as_u16().to_string(),
+        )
+        .increment(1);
+
+        let body = Json(json!({
             "status": "error",
             "code": status.as_u16(),
             "message": message,
-        });
+        }));
 
-        (status, Json(body)).into_response()
+        (status, body).into_response()
     }
 }
 
-impl From<sqlx::Error> for AppError {
+impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
-        match &err {
-            sqlx::Error::RowNotFound => AppError::NotFound("Not found".into()),
-            _ => AppError::Sqlx(err),
+        match err {
+            sqlx::Error::RowNotFound => ApiError::NotFound,
+            _ => ApiError::Internal(err.to_string()),
         }
     }
 }
 
-impl From<anyhow::Error> for AppError {
-    fn from(err: anyhow::Error) -> Self {
-        AppError::Internal(err)
-    }
-}
-
-// Success wrapper: { "status": "success", "data": T }
-pub struct ApiOk<T: Serialize>(pub T);
-
-impl<T: Serialize> IntoResponse for ApiOk<T> {
-    fn into_response(self) -> Response {
-        Json(json!({
-            "status": "success",
-            "data": self.0,
-        }))
-        .into_response()
+impl From<reqwest::Error> for ApiError {
+    fn from(err: reqwest::Error) -> Self {
+        ApiError::Internal(err.to_string())
     }
 }

@@ -1,90 +1,107 @@
 mod app;
 mod config;
 mod db;
-mod dto;
 mod error;
-mod logo;
 mod models;
 mod routes;
-mod s3;
-mod services;
+mod telemetry;
 
-use std::time::Duration;
 use tokio::net::TcpListener;
+use tracing::info;
+
+use crate::config::Config;
 
 #[tokio::main]
 async fn main() {
+    // Dump OpenAPI spec and exit
+    // (used by `make openapi` to generate docs/public/openapi.json)
+    if std::env::args().any(|a| a == "--openapi") {
+        let spec = serde_json::to_string_pretty(&routes::openapi_spec()).unwrap();
+        println!("{spec}");
+        return;
+    }
+
+    dotenvy::from_filename("lohikeitto.local.env").ok();
+    dotenvy::from_filename("lohikeitto.env").ok();
+
     init_tracing();
 
-    let config = config::Config::from_env().expect("Failed to load config");
+    let config = Config::from_env();
 
-    let pool = db::pool::create_pool(&config.database_url)
-        .await
-        .expect("Failed to create DB pool");
+    db::pool::ensure_database(&config.database_url).await;
+    let pool = db::pool::connect_with_retry(&config.database_url, 5).await;
 
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .expect("Failed to run migrations");
+        .expect("failed to run migrations");
 
-    let bucket = s3::client::create_bucket(&config).expect("Failed to create S3 bucket");
+    info!("database connected and migrations applied");
 
-    let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .expect("Failed to create HTTP client");
+    let metrics_handle = telemetry::setup();
+    tokio::spawn(telemetry::pool_monitor(pool.clone()));
 
     let state = app::AppState {
-        db: pool.clone(),
-        http,
-        bucket,
-        logo_base_url: config.logo_base_url,
-        brandfetch_client_id: config.brandfetch_client_id,
-        logodev_token: config.logodev_token,
-        admin_token: config.admin_token,
+        db: pool,
+        config: config.clone(),
+        http_client: reqwest::Client::new(),
     };
 
-    let router = app::create_router(state, &config.cors_origin);
+    let app = app::build(state, metrics_handle);
 
     let addr = format!("{}:{}", config.host, config.port);
-    tracing::info!("listening on {addr}");
-
-    let listener = TcpListener::bind(&addr).await.expect("Failed to bind");
-    axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
+    let listener = TcpListener::bind(&addr)
         .await
-        .expect("Server error");
+        .expect("failed to bind to address");
 
-    pool.close().await;
-    tracing::info!("shutdown complete");
+    info!(address = %listener.local_addr().unwrap(), "server is running");
+
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .expect("failed to start server");
 }
 
 fn init_tracing() {
-    use tracing_subscriber::{fmt, EnvFilter};
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        tracing_subscriber::EnvFilter::new(
+            "info,sqlx=warn,sqlx::postgres::connection=error,tower_http=debug",
+        )
+    });
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,sqlx=warn,sqlx::postgres::connection=error,tower_http=debug"));
-
-    let json_logs = std::env::var("LOG_JSON").is_ok();
-
-    if json_logs {
-        fmt()
-            .with_env_filter(filter)
-            .with_target(false)
+    if std::env::var("LOG_JSON").is_ok_and(|v| v == "1") {
+        tracing_subscriber::fmt()
             .json()
+            .with_env_filter(filter)
             .init();
     } else {
-        fmt()
-            .with_env_filter(filter)
-            .with_target(false)
-            .with_timer(fmt::time::ChronoLocal::new("%H:%M:%S".to_string()))
-            .init();
+        tracing_subscriber::fmt().with_env_filter(filter).init();
     }
 }
 
 async fn shutdown_signal() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("Failed to listen for ctrl+c");
-    tracing::info!("shutdown signal received");
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => info!("received Ctrl+C, shutting down"),
+        () = terminate => info!("received SIGTERM, shutting down"),
+    }
 }

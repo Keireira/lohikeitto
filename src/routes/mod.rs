@@ -1,37 +1,41 @@
-use axum::Router;
-
-use crate::app::AppState;
-use crate::error::AppError;
-
-mod admin;
 mod health;
-mod init;
-mod search;
-mod services;
 
-pub fn public_routes() -> Router<AppState> {
-    Router::new()
-        .merge(health::routes())
-        .merge(search::routes())
-        .merge(services::routes())
-        .merge(init::routes())
+use axum::{Json, Router, routing::get};
+use tower_http::compression::CompressionLayer;
+use utoipa::OpenApi;
+
+use crate::models::health::HealthResponse;
+use crate::models::internal::ErrorResponse;
+use crate::app::AppState;
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Lohikeitto",
+        description = "Brand Meta API",
+        version = "1.0.0",
+    ),
+    servers(
+        (url = "https://soup.uha.app", description = "Production"),
+        (url = "http://localhost:3000", description = "Local development"),
+    ),
+    paths(health::health_check),
+    components(schemas(
+        HealthResponse,
+        ErrorResponse,
+    ))
+)]
+struct ApiDoc;
+
+// Return the generated OpenAPI spec
+pub fn openapi_spec() -> utoipa::openapi::OpenApi {
+    ApiDoc::openapi()
 }
 
-pub fn admin_routes() -> Router<AppState> {
+// Build the application router with all routes
+pub fn router() -> Router<AppState> {
     Router::new()
-        .merge(admin::routes())
-}
-
-pub fn check_admin(state: &AppState, auth_header: Option<&str>) -> Result<(), AppError> {
-    use subtle::ConstantTimeEq;
-
-    let token = auth_header
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized)?;
-
-    if token.as_bytes().ct_eq(state.admin_token.as_bytes()).into() {
-        Ok(())
-    } else {
-        Err(AppError::Unauthorized)
-    }
+        .route("/health", get(health::health_check))
+        .route("/openapi.json", get(|| async { Json(ApiDoc::openapi()) }))
+        .layer(CompressionLayer::new().gzip(true).br(true))
 }

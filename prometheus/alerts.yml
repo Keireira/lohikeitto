@@ -1,0 +1,68 @@
+groups:
+  - name: sharkie
+    rules:
+      # ── 5xx spike ──────────────────────────────────────
+      - alert: HighServerErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate"
+          description: "More than 0.5 req/s returning 5xx over the last 5 minutes."
+
+      # ── DB pool exhaustion ─────────────────────────────
+      - alert: DbPoolExhausted
+        expr: db_pool_idle == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool exhausted"
+          description: "No idle connections available for over 1 minute."
+
+      - alert: DbPoolUnhealthy
+        expr: db_pool_healthy == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database health check failing"
+          description: "SELECT 1 probe has been failing for over 1 minute."
+
+      # ── Backfill failures ──────────────────────────────
+      - alert: BackfillFailure
+        expr: increase(backfill_failures_total[1h]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Historical data backfill failed"
+          description: "The startup backfill task encountered an error."
+
+      - alert: BackfillStalled
+        expr: backfill_remaining_dates > 0 and rate(backfill_dates_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backfill stalled"
+          description: "Backfill has remaining dates but made no progress in 10 minutes."
+
+      # ── Rate limit hits ────────────────────────────────
+      - alert: HighRateLimitHits
+        expr: rate(http_requests_total{status="429"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated rate-limiting"
+          description: "More than 1 req/s being rate-limited over the last 5 minutes."
+
+      # ── Rate fetch failures ────────────────────────────
+      - alert: RateFetchFailures
+        expr: increase(rate_fetch_failures_total[1h]) >= 2
+        labels:
+          severity: warning
+        annotations:
+          summary: "Daily rate fetch failing"
+          description: "Two or more rate fetch failures in the last hour."

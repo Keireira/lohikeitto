@@ -4,21 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1"
 axum = "0.8"
-chrono = { version = "0.4", features = ["serde"] }
-dotenvy = "0.15"
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
-rand = "0.9"
-reqwest = { version = "0.12", features = ["json"] }
-rust-s3 = { version = "0.35", default-features = false, features = ["tokio-rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono", "tls-rustls", "migrate", "uuid", "json"] }
-tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.6", features = ["cors", "trace", "set-header", "limit", "request-id", "timeout"] }
+tokio = { version = "1", features = ["full", "signal"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "rust_decimal", "tls-rustls", "migrate", "macros", "derive"] }
+rust_decimal = "1.36"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+reqwest = { version = "0.13", features = ["json"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
-subtle = "2"
-urlencoding = "2"
-uuid = { version = "1", features = ["serde"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tower-http = { version = "0.6", features = ["cors", "limit", "compression-gzip", "compression-br", "trace", "request-id", "propagate-header", "set-header", "timeout"] }
+tower_governor = "0.8"
+uuid = { version = "1", features = ["v4"] }
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+utoipa = { version = "5", features = ["chrono"] }
+url = "2"

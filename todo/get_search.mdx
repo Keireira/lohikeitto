@@ -1,0 +1,196 @@
+# GET /search
+
+Поиск сервисов для добавления в качестве подписки.
+
+## Запрос
+
+```
+GET /search?q={search_string}&source={local|external}
+```
+
+| Параметр | Тип      | Обязательный | Описание                                                                 |
+|----------|----------|--------------|--------------------------------------------------------------------------|
+| `q`      | `string` | да           | Поисковая строка                                                         |
+| `source` | `string` | да           | Источник поиска: `local` (только локальная БД), `external` (внешние API), `all` (default) (все возможные апи едино) |
+
+## Ответ
+
+Массив объектов:
+
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "logo_url": "https://s3.uha.app/logos/adguard.webp",
+    "name": "AdGuard",
+    "domain": "adguard.com",
+    "source": "local"
+  }
+]
+```
+
+| Поле       | Тип      | Описание                                              |
+|------------|----------|-------------------------------------------------------|
+| `id`       | `UUID`   | Для локальных — ID из БД, для внешних — `Uuid::new_v4()` |
+| `logo_url` | `string` | Ссылка на логотип                                     |
+| `name`     | `string` | Название сервиса                                      |
+| `domain`   | `string` | Домен сервиса                                         |
+| `source`   | `string` | Источник: `local`, `brandfetch` или `logo.dev`        |
+
+---
+
+## Логика поиска
+
+### Параллельные запросы
+
+Поиск осуществляется параллельно следующими способами:
+1. **Локальная БД** — поиск по собственной базе сервисов
+2. **Brandfetch API** — поиск через внешний API
+3. **logo.dev API** — поиск через внешний API
+
+Комбинация поисков происходит в соответствии с переданным с фронта параметром `source`
+
+|	`source`		|	`local`	|	`brandfetch`	|	`logo.dev`	|
+|-------------|---------|---------------|-------------|
+| `local`			| 	`+`		|				`-`			|			`-`			|
+| `external`	|		`-`		|				`+`			|			`+`			|
+| `all`				|		`+`		|				`+`			|			`+`			|
+
+### Приоритет и комбинация результатов
+
+1. **Local** — первые (проверенные данные, быстрый отклик)
+2. **Brandfetch** — вторые (есть `quality_score` для ранжирования)
+3. **logo.dev** — последние
+
+### Дедупликация
+
+По полю `domain`. Если сервис найден в нескольких источниках — остаётся версия с более высоким приоритетом.
+
+#### Например:
+- `adguard.com` найден и локально, и в Brandfetch, и в logo.dev — остаётся только `local`.
+- найден локально, и в `logo.dev` — остаётся только `local`
+- найден и в `Brandfetch`, и в `logo.dev` — остаётся только `brandfetch`
+- найден только в `logo.dev` — остаётся только `logo.dev`
+- и так далее
+
+---
+
+## Стратегия загрузки на фронте
+
+Два последовательных запроса с разными `source`:
+
+| Шаг | Запрос                           | Время отклика | Действие                        |
+|-----|----------------------------------|---------------|---------------------------------|
+| 1   | `GET /search?q=...&source=local` | ~50 мс        | Рендерим результаты сразу       |
+| 2   | `GET /search?q=...&source=external` | 1–2 с      | Дорисовываем когда придёт ответ |
+
+На фронте обязателен **debounce 300 мс** на поисковые запросы.
+
+---
+
+## Внешние API
+
+### Brandfetch
+
+**.env vars matching**
+
+`Client ID` for `brandfetch` -> `BRANDFETCH_CLIENT_ID`
+
+**Эндпоинт:**
+```
+GET https://api.brandfetch.io/v2/search/{name}?c={BRANDFETCH_CLIENT_ID}
+```
+
+| Параметр | Тип      | Расположение | Обязательный | Описание                                    |
+|----------|----------|--------------|--------------|---------------------------------------------|
+| `name`   | `string` | path         | да           | Название компании для поиска                |
+| `c`      | `string` | query        | да           | Client ID для аутентификации приложения     |
+
+**Ответ:**
+```json
+[
+  {
+    "brandId": "idbeBCDlpy",
+    "claimed": false,
+    "domain": "adguard.com",
+    "name": "AdGuard",
+    "icon": "https://cdn.brandfetch.io/idbeBCDlpy/w/128/h/128/fallback/lettermark/icon.webp?c={BRANDFETCH_CLIENT_ID}"
+  }
+]
+```
+
+| Поле      | Тип       | Описание                                         |
+|-----------|-----------|--------------------------------------------------|
+| `brandId` | `string`  | Уникальный ID бренда                             |
+| `name`    | `string?` | Название бренда                                  |
+| `domain`  | `string`  | Домен сайта                                      |
+| `icon`    | `string?` | URL иконки бренда                                |
+| `claimed` | `bool`    | Профиль подтверждён владельцем на Brandfetch      |
+
+> `_score` и `qualityScore` присутствуют в реальных ответах API, но не задокументированы официально.
+
+**Документация:** [docs.brandfetch.com/reference/brand-search-api](https://docs.brandfetch.com/reference/brand-search-api)
+
+### logo.dev
+
+**.env vars matching**
+
+**Эндпоинт:**
+```
+GET https://api.logo.dev/search?q={query}
+Authorization: Bearer {LOGODEV_SK}
+```
+
+| Параметр   | Тип      | Обязательный | Описание                                                                 |
+|------------|----------|--------------|--------------------------------------------------------------------------|
+| `q`        | `string` | да           | Название бренда для поиска                                               |
+
+**Ответ:**
+```json
+[
+  {
+    "name": "AdGuard",
+    "domain": "adguard.com"
+  }
+]
+```
+
+| Поле     | Тип      | Описание      |
+|----------|----------|---------------|
+| `name`   | `string` | Название      |
+| `domain` | `string` | Домен         |
+
+Максимум 10 результатов, отсортированных по популярности. URL логотипа формируется по шаблону:
+```
+https://img.logo.dev/{domain}?token={LOGODEV_PK}&size=80&retina=true
+```
+
+**Документация:** [logo.dev/docs/brand-search/introduction](https://www.logo.dev/docs/brand-search/introduction)
+
+---
+
+## Трансформация внешних данных
+
+Данные из внешних API приводятся к единому формату ответа:
+
+**Brandfetch -> SearchResult:**
+```json
+{
+  "id": "new_v4()",
+  "name": "AdGuard",
+  "domain": "adguard.com",
+  "logo_url": "https://cdn.brandfetch.io/idbeBCDlpy/w/128/h/128/fallback/lettermark/icon.webp?c={BRANDFETCH_CLIENT_ID}",
+  "source": "brandfetch"
+}
+```
+
+**logo.dev -> SearchResult:**
+```json
+{
+  "id": "new_v4()",
+  "name": "AdGuard",
+  "domain": "adguard.com",
+  "logo_url": "https://img.logo.dev/adguard.com?token={LOGO_DEV_SECRET_KEY}&size=80&retina=true",
+  "source": "logo.dev"
+}
+```

@@ -7,8 +7,8 @@
 target/
 
 # Environment
-.env
-.env*.local
+*.env
+!*.env.example
 
 frontend/
 rules/
