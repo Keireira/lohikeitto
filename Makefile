@@ -2,7 +2,8 @@
        build \
        up down logs ps \
        lint format check \
-       migrate help
+       migrate \
+       clean token help
 
 # ─── Development ────────────────────────────────────
 
@@ -64,7 +65,10 @@ migrate: ## Run SQLx database migrations
 clean: ## Clean all build artifacts
 	cargo clean
 
-# ─── Help ───────────────────────────────────────────
+# ─── Misc ───────────────────────────────────────────
+
+token: ## Generate a new admin token
+	@echo "ADMIN_TOKEN=$$(openssl rand -base64 32)"
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \

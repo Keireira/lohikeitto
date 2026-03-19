@@ -21,8 +21,8 @@ static REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
+    pub http: Client,
     pub config: Config,
-    pub http_client: Client,
 }
 
 // Assemble the full application: routes + middleware stack.

@@ -1,9 +1,11 @@
 mod app;
 mod config;
 mod db;
+mod dto;
 mod error;
 mod models;
 mod routes;
+mod services;
 mod telemetry;
 
 use tokio::net::TcpListener;
@@ -44,7 +46,7 @@ async fn main() {
     let state = app::AppState {
         db: pool,
         config: config.clone(),
-        http_client: reqwest::Client::new(),
+        http: reqwest::Client::new(),
     };
 
     let app = app::build(state, metrics_handle);

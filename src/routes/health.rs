@@ -6,7 +6,7 @@ use axum::{
 };
 
 use crate::app::AppState;
-use crate::models::health::HealthResponse;
+use crate::dto::health::HealthResponse;
 
 #[utoipa::path(
     get,

@@ -6,7 +6,7 @@ use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use sqlx::PgPool;
 use tracing::{info, warn};
 
-const KNOWN_PATHS: &[&str] = &["/health"];
+const KNOWN_PATHS: &[&str] = &["/health", "/search"];
 
 /*
  * Install the global Prometheus metrics recorder.

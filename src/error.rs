@@ -5,14 +5,11 @@ use axum::{
 };
 use serde_json::json;
 
-pub const MAX_RESPONSE_SIZE: usize = 1024 * 1024;
-
 #[derive(Debug)]
 pub enum ApiError {
     NotFound,
     Internal(String),
     InvalidInput(String),
-    PayloadTooLarge,
 }
 
 impl IntoResponse for ApiError {
@@ -27,10 +24,6 @@ impl IntoResponse for ApiError {
                 )
             }
             ApiError::InvalidInput(msg) => (StatusCode::BAD_REQUEST, msg),
-            ApiError::PayloadTooLarge => (
-                StatusCode::PAYLOAD_TOO_LARGE,
-                format!("Response exceeds {} KB limit", MAX_RESPONSE_SIZE / 1024),
-            ),
         };
 
         metrics::counter!(

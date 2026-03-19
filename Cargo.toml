@@ -8,7 +8,7 @@ axum = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full", "signal"] }
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "rust_decimal", "tls-rustls", "migrate", "macros", "derive"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "rust_decimal", "tls-rustls", "migrate", "macros", "derive", "uuid"] }
 rust_decimal = "1.36"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
@@ -17,8 +17,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tower-http = { version = "0.6", features = ["cors", "limit", "compression-gzip", "compression-br", "trace", "request-id", "propagate-header", "set-header", "timeout"] }
 tower_governor = "0.8"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "v5", "serde"] }
 metrics = "0.24"
 metrics-exporter-prometheus = "0.16"
-utoipa = { version = "5", features = ["chrono"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 url = "2"
