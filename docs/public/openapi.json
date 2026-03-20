@@ -70,9 +70,9 @@
             }
           },
           {
-            "name": "source",
+            "name": "sources",
             "in": "query",
-            "description": "Search source: `local`, `external`, `brandfetch`, `logodev`, or `all` (default)",
+            "description": "Comma-separated sources: `local`, `brandfetch`, `logodev`. Aliases: `external` (brandfetch + logodev), `all` (default)",
             "required": true,
             "schema": {
               "type": "string"
@@ -208,7 +208,7 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "For local results — ID from DB; for external — deterministic UUID v5 from domain"
+            "description": "For local results — UUID v4 from SHARKIE-DB; for external — deterministic UUID v5 from domain"
           },
           "logo_url": {
             "type": "string",

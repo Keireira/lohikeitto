@@ -17,8 +17,7 @@ use crate::services::search as search_service;
     description = "Search for services across local database and external APIs (Brandfetch, logo.dev). Results are deduplicated by domain with priority: local > brandfetch > logo.dev.",
     params(
         ("q" = String, Query, description = "Search string (required, non-empty)"),
-        ("source" = String, Query, description = "Search source: `local`, `external`, `brandfetch`, `logodev`, or `all` (default)"),
-        ("limit" = Option<u8>, Query, description = "Maximum number of results to return (1–15, default 10)"),
+        ("sources" = String, Query, description = "Comma-separated sources: `local`, `brandfetch`, `logodev`. Aliases: `external` (brandfetch + logodev), `all` (default)"),
     ),
     responses(
         (status = 200, description = "Search results", body = [SearchResult],
@@ -44,12 +43,8 @@ pub async fn search(
         return Err(ApiError::InvalidInput("q is required".into()));
     }
 
-    let limit = params.safe_limit();
-
-    let mut results =
-        search_service::search(&state.db, &state.http, &state.config, q, &params.source).await;
-
-    results.truncate(limit);
+    let results =
+        search_service::search(&state.db, &state.http, &state.config, q, &params.sources).await;
 
     Ok(Json(results))
 }

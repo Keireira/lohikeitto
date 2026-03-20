@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 
-use crate::dto::search::{SearchResult, SearchSource};
+use crate::dto::search::{SearchResult, SearchSources, Source};
 use crate::models::brandfetch::BrandfetchItem;
 use crate::models::logodev::LogoDevItem;
 use crate::models::service::ServiceRow;
@@ -17,41 +17,33 @@ pub async fn search(
     http: &Client,
     config: &Config,
     q: &str,
-    source: &SearchSource,
+    sources: &SearchSources,
 ) -> Vec<SearchResult> {
-    let (local, brandfetch, logodev) = match source {
-        SearchSource::Local => {
-            let local = search_local(pool, &config.s3_base_url, q).await;
-            (local, vec![], vec![])
-        }
-
-        SearchSource::Brandfetch => {
-            let brandfetch = search_brandfetch(http, &config.brandfetch_client_id, q).await;
-            (vec![], brandfetch, vec![])
-        }
-
-        SearchSource::Logodev => {
-            let logodev = search_logodev(http, &config.logodev_pk, &config.logodev_sk, q).await;
-            (vec![], vec![], logodev)
-        }
-
-        SearchSource::External => {
-            let (brandfetch, logodev) = tokio::join!(
-                search_brandfetch(http, &config.brandfetch_client_id, q),
-                search_logodev(http, &config.logodev_pk, &config.logodev_sk, q),
-            );
-            (vec![], brandfetch, logodev)
-        }
-
-        SearchSource::All => {
-            let (local, brandfetch, logodev) = tokio::join!(
-                search_local(pool, &config.s3_base_url, q),
-                search_brandfetch(http, &config.brandfetch_client_id, q),
-                search_logodev(http, &config.logodev_pk, &config.logodev_sk, q),
-            );
-            (local, brandfetch, logodev)
+    let local_fut = async {
+        if sources.has(Source::Local) {
+            search_local(pool, &config.s3_base_url, q).await
+        } else {
+            vec![]
         }
     };
+
+    let bf_fut = async {
+        if sources.has(Source::Brandfetch) {
+            search_brandfetch(http, &config.brandfetch_client_id, q).await
+        } else {
+            vec![]
+        }
+    };
+
+    let ld_fut = async {
+        if sources.has(Source::Logodev) {
+            search_logodev(http, &config.logodev_pk, &config.logodev_sk, q).await
+        } else {
+            vec![]
+        }
+    };
+
+    let (local, brandfetch, logodev) = tokio::join!(local_fut, bf_fut, ld_fut);
 
     deduplicate(local, brandfetch, logodev)
 }
@@ -78,6 +70,7 @@ async fn search_local(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchRe
     rows.into_iter()
         .filter_map(|r| {
             let domain = r.domain?;
+
             Some(SearchResult {
                 id: r.id,
                 logo_url: format!("{}/logos/{}.webp", s3_base_url, r.slug),

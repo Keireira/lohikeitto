@@ -23,7 +23,15 @@ When a client sends `GET /search?q=spotify`, the API searches up to three source
            └─── logo.dev API ─────────────────────── ~800ms
 ```
 
-The `source` parameter controls which sources are queried. Results are **deduplicated by domain** with priority:
+The `sources` parameter controls which sources are queried — as a comma-separated list:
+
+```
+/search?q=spotify&sources=local,brandfetch
+```
+
+Aliases: `external` (brandfetch + logodev), `all` (default — all three).
+
+Results are **deduplicated by domain** with priority:
 
 ```
 local  >  brandfetch  >  logo.dev
@@ -35,8 +43,8 @@ If `spotify.com` appears in all three — only the local version is kept.
 
 The client fires two sequential requests to keep the UI responsive:
 
-1. `GET /search?q=...&source=local` — renders instantly (~50ms)
-2. `GET /search?q=...&source=external` — appends results when ready (~1-2s)
+1. `GET /search?q=...&sources=local` — renders instantly (~50ms)
+2. `GET /search?q=...&sources=external` — appends results when ready (~1-2s)
 
 External results use a **deterministic UUID v5** derived from the domain, so React keys stay stable across requests.
 
