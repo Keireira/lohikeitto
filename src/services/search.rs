@@ -51,10 +51,10 @@ pub async fn search(
 async fn search_local(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchResult> {
     let rows = sqlx::query_as::<sqlx::Postgres, ServiceRow>(
         r#"
-        SELECT id, name, slug, domain
+        SELECT id, name, slug, domains
         FROM services
         WHERE name ILIKE '%' || $1 || '%'
-           OR domain ILIKE '%' || $1 || '%'
+           OR EXISTS (SELECT 1 FROM unnest(domains) d WHERE d ILIKE '%' || $1 || '%')
         ORDER BY similarity(name, $1) DESC
         LIMIT 10
         "#,
@@ -68,16 +68,13 @@ async fn search_local(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchRe
     });
 
     rows.into_iter()
-        .filter_map(|r| {
-            let domain = r.domain?;
-
-            Some(SearchResult {
-                id: r.id,
-                logo_url: format!("{}/logos/{}.webp", s3_base_url, r.slug),
-                name: r.name,
-                domain,
-                source: "local".into(),
-            })
+        .filter(|r| !r.domains.is_empty())
+        .map(|r| SearchResult {
+            id: r.id,
+            logo_url: format!("{}/logos/{}.webp", s3_base_url, r.slug),
+            name: r.name,
+            domains: r.domains,
+            source: "local".into(),
         })
         .collect()
 }
@@ -123,7 +120,7 @@ async fn search_brandfetch(http: &Client, client_id: &str, q: &str) -> Vec<Searc
                     )
                 }),
                 name,
-                domain: item.domain,
+                domains: vec![item.domain],
                 source: "brandfetch".into(),
             }
         })
@@ -161,24 +158,30 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
                 )
             }),
             name: item.name,
-            domain: item.domain,
+            domains: vec![item.domain],
             source: "logo.dev".into(),
         })
         .collect()
 }
 
-/// Priority-based deduplication by domain: local > brandfetch > logo.dev
+/// Deduplicate by domain. Local results may have multiple domains — each one
+/// blocks external duplicates. Priority: local > brandfetch > logo.dev.
 fn deduplicate(
     local: Vec<SearchResult>,
     brandfetch: Vec<SearchResult>,
     logodev: Vec<SearchResult>,
 ) -> Vec<SearchResult> {
-    let mut seen = HashSet::new();
-    let mut results = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut results: Vec<SearchResult> = Vec::new();
 
     for group in [local, brandfetch, logodev] {
         for item in group {
-            if seen.insert(item.domain.clone()) {
+            // Local results claim all their domains at once
+            let dominated = item.domains.iter().all(|d| seen.contains(d));
+            if !dominated {
+                for d in &item.domains {
+                    seen.insert(d.clone());
+                }
                 results.push(item);
             }
         }

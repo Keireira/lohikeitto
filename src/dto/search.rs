@@ -75,11 +75,11 @@ pub struct SearchQuery {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "logo_url": "https://s3.uha.app/logos/adguard.webp",
     "name": "AdGuard",
-    "domain": "adguard.com",
+    "domains": ["adguard.com"],
     "source": "local"
 }))]
 pub struct SearchResult {
-    /// For local results — UUID v4 from SHARKIE-DB; for external — deterministic UUID v5 from domain
+    /// For local results — UUID v4 from DB; for external — deterministic UUID v5 from first domain
     pub id: Uuid,
     /// Logo image URL
     #[schema(example = "https://s3.uha.app/logos/adguard.webp")]
@@ -87,9 +87,8 @@ pub struct SearchResult {
     /// Service name
     #[schema(example = "AdGuard")]
     pub name: String,
-    /// Service domain
-    #[schema(example = "adguard.com")]
-    pub domain: String,
+    /// Service domains. Local (curated) results may have multiple; external results always have one.
+    pub domains: Vec<String>,
     /// Result source: `local`, `brandfetch`, or `logo.dev`
     #[schema(example = "local")]
     pub source: String,

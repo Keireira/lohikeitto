@@ -14,7 +14,7 @@ use crate::services::search as search_service;
     path = "/search",
     tag = "Search",
     summary = "Search services",
-    description = "Search for services across local database and external APIs (Brandfetch, logo.dev). Results are deduplicated by domain with priority: local > brandfetch > logo.dev.",
+    description = "Search for services across local database and external APIs (Brandfetch, logo.dev). Results are deduplicated by domain with priority: local > brandfetch > logo.dev. Local (curated) services may have multiple domains; external results always have one.",
     params(
         ("q" = String, Query, description = "Search string (required, non-empty)"),
         ("sources" = String, Query, description = "Comma-separated sources: `local`, `brandfetch`, `logodev`. Aliases: `external` (brandfetch + logodev), `all` (default)"),
@@ -26,7 +26,7 @@ use crate::services::search as search_service;
                     "id": "550e8400-e29b-41d4-a716-446655440000",
                     "logo_url": "https://s3.uha.app/logos/adguard.webp",
                     "name": "AdGuard",
-                    "domain": "adguard.com",
+                    "domains": ["adguard.com"],
                     "source": "local"
                 }
             ])
