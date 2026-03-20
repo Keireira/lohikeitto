@@ -11,9 +11,12 @@ use crate::dto::health::HealthResponse;
 #[utoipa::path(
     get,
     path = "/health",
+    tag = "System",
+    summary = "Health check",
+    description = "Returns the service status and database connectivity. Used by orchestrators (Docker, k8s) for liveness probes.",
     responses(
-        (status = 200, description = "Service healthy", body = HealthResponse),
-        (status = 503, description = "Service degraded", body = HealthResponse),
+        (status = 200, description = "Service is healthy", body = HealthResponse),
+        (status = 503, description = "Service is degraded (database unreachable)", body = HealthResponse),
     )
 )]
 pub async fn health_check(State(state): State<AppState>) -> Response {

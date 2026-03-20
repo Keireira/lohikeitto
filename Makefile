@@ -25,6 +25,9 @@ openapi: ## Regenerate docs/public/openapi.json from Rust source
 build: ## Build Rust backend (release)
 	cargo build --release
 
+build-docs: ## Build documentation site
+	pnpm --prefix docs run build
+
 # ─── Docker ─────────────────────────────────────────
 
 up: ## Start services with Docker Compose
@@ -64,6 +67,8 @@ migrate: ## Run SQLx database migrations
 
 clean: ## Clean all build artifacts
 	cargo clean
+	rm -rf admin/.next admin/out
+	rm -rf docs/.next docs/out
 
 # ─── Misc ───────────────────────────────────────────
 

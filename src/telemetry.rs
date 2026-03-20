@@ -8,17 +8,15 @@ use tracing::{info, warn};
 
 const KNOWN_PATHS: &[&str] = &["/health", "/search"];
 
-/*
- * Install the global Prometheus metrics recorder.
- * Returns a handle used to render the `/metrics` endpoint.
- */
+/// Install the global Prometheus metrics recorder.
+/// Returns a handle used to render the `/metrics` endpoint.
 pub fn setup() -> PrometheusHandle {
     PrometheusBuilder::new()
         .install_recorder()
         .expect("failed to install Prometheus recorder")
 }
 
-// Tower middleware that records per-request counters and latency histograms
+/// Tower middleware that records per-request counters and latency histograms
 pub async fn track_http(req: axum::extract::Request, next: Next) -> Response {
     let raw_path = req.uri().path();
 
@@ -49,10 +47,8 @@ pub async fn track_http(req: axum::extract::Request, next: Next) -> Response {
     response
 }
 
-/*
- * Background task that periodically records DB connection pool gauges
- * and runs a `SELECT 1` health probe.
- */
+/// Background task that periodically records DB connection pool gauges
+/// and runs a `SELECT 1` health probe.
 pub async fn pool_monitor(pool: PgPool) {
     let mut healthy = true;
 

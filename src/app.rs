@@ -25,7 +25,7 @@ pub struct AppState {
     pub config: Config,
 }
 
-// Assemble the full application: routes + middleware stack.
+/// Assemble the full application: routes + middleware stack.
 pub fn build(state: AppState, metrics_handle: PrometheusHandle) -> Router {
     let cors = cors_layer(&state.config.allowed_origins);
 

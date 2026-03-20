@@ -1,5 +1,5 @@
 groups:
-  - name: sharkie
+  - name: lohikeitto
     rules:
       # ── 5xx spike ──────────────────────────────────────
       - alert: HighServerErrorRate

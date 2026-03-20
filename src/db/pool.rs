@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use tracing::{info, warn};
 
-// Connect to the `postgres` maintenance DB, check if the target DB exists, create if not.
+/// Connect to the `postgres` maintenance DB, check if the target DB exists, create if not.
 pub async fn ensure_database(url: &str) {
     let parsed = url::Url::parse(url).expect("invalid DATABASE_URL");
     let db_name = parsed.path().trim_start_matches('/');

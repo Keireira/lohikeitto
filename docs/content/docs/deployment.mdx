@@ -1,0 +1,66 @@
+---
+title: Deployment
+description: Environment variables and Docker setup
+---
+
+## Environment variables
+
+### Required
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `BRANDFETCH_CLIENT_ID` | Brandfetch API client ID |
+| `LOGODEV_PK` | logo.dev public key (used in logo URLs) |
+| `LOGODEV_SK` | logo.dev secret key (used for API auth) |
+| `CF_R2_S3_API` | Cloudflare R2 S3-compatible endpoint |
+| `CF_R2_ACCOUNT_ACCESS_KEY_ID` | R2 access key |
+| `CF_R2_ACCOUNT_SECRET_ACCESS_KEY` | R2 secret key |
+| `CF_R2_BUCKET` | R2 bucket name |
+| `S3_BASE_URL` | Public base URL for logos (e.g. `https://s3.uha.app`) |
+| `ADMIN_TOKEN` | Admin API token (`make token` to generate) |
+
+### Optional
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOST` | `0.0.0.0` | Bind address |
+| `PORT` | `3000` | Bind port |
+| `ALLOWED_ORIGINS` | `*` (any) | Comma-separated CORS origins |
+| `RUST_LOG` | `info,sqlx=warn` | Log filter |
+| `LOG_JSON` | — | Set to `1` for JSON log output |
+
+## Docker
+
+```bash
+docker compose up -d
+```
+
+The container expects:
+- External network `sharkie-network`
+- PostgreSQL reachable at the `DATABASE_URL`
+- All required env vars in `lohikeitto.env`
+
+Health check runs every 15s against `GET /health`.
+
+## Build from source
+
+```bash
+# Development
+make dev
+
+# Release binary
+make build
+
+# The binary supports --openapi flag to dump the spec:
+./target/release/lohikeitto --openapi > openapi.json
+```
+
+## Observability
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Liveness probe (checks DB connectivity) |
+| `GET /metrics` | Prometheus metrics (request counts, latency histograms, DB pool stats) |
+
+Set `RUST_LOG=debug` for detailed request tracing with `x-request-id` propagation.

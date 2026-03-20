@@ -174,7 +174,7 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
         .collect()
 }
 
-// Priority-based deduplication by domain: local > brandfetch > logo.dev
+/// Priority-based deduplication by domain: local > brandfetch > logo.dev
 fn deduplicate(
     local: Vec<SearchResult>,
     brandfetch: Vec<SearchResult>,

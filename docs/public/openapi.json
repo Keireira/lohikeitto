@@ -2,9 +2,9 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Lohikeitto",
-    "description": "Brand Meta API",
+    "description": "Service catalog API with search, logos, and categories. Aggregates data from a local database and external brand APIs (Brandfetch, logo.dev).",
     "license": {
-      "name": ""
+      "name": "AGPL-3.0"
     },
     "version": "1.0.0"
   },
@@ -22,12 +22,14 @@
     "/health": {
       "get": {
         "tags": [
-          "health"
+          "System"
         ],
+        "summary": "Health check",
+        "description": "Returns the service status and database connectivity. Used by orchestrators (Docker, k8s) for liveness probes.",
         "operationId": "health_check",
         "responses": {
           "200": {
-            "description": "Service healthy",
+            "description": "Service is healthy",
             "content": {
               "application/json": {
                 "schema": {
@@ -37,11 +39,86 @@
             }
           },
           "503": {
-            "description": "Service degraded",
+            "description": "Service is degraded (database unreachable)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search services",
+        "description": "Search for services across local database and external APIs (Brandfetch, logo.dev). Results are deduplicated by domain with priority: local > brandfetch > logo.dev.",
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search string (required, non-empty)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "Search source: `local`, `external`, `brandfetch`, `logodev`, or `all` (default)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of results to return (1–15, default 10)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchResult"
+                  }
+                },
+                "example": [
+                  {
+                    "domain": "adguard.com",
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "logo_url": "https://s3.uha.app/logos/adguard.webp",
+                    "name": "AdGuard",
+                    "source": "local"
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input (empty or missing `q`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -63,14 +140,25 @@
           "code": {
             "type": "integer",
             "format": "int32",
+            "description": "HTTP status code",
+            "example": 400,
             "minimum": 0
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "Error description",
+            "example": "q is required"
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "description": "Always `error`",
+            "example": "error"
           }
+        },
+        "example": {
+          "code": 400,
+          "message": "q is required",
+          "status": "error"
         }
       },
       "HealthResponse": {
@@ -82,16 +170,80 @@
         ],
         "properties": {
           "db": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the database is reachable"
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "Human-readable status message",
+            "example": "Lohikeitto is ready"
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "description": "Service status: `ok` or `degraded`",
+            "example": "ok"
           }
+        },
+        "example": {
+          "db": true,
+          "message": "Lohikeitto is ready",
+          "status": "ok"
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "logo_url",
+          "name",
+          "domain",
+          "source"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Service domain",
+            "example": "adguard.com"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "For local results — ID from DB; for external — deterministic UUID v5 from domain"
+          },
+          "logo_url": {
+            "type": "string",
+            "description": "Logo image URL",
+            "example": "https://s3.uha.app/logos/adguard.webp"
+          },
+          "name": {
+            "type": "string",
+            "description": "Service name",
+            "example": "AdGuard"
+          },
+          "source": {
+            "type": "string",
+            "description": "Result source: `local`, `brandfetch`, or `logo.dev`",
+            "example": "local"
+          }
+        },
+        "example": {
+          "domain": "adguard.com",
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "logo_url": "https://s3.uha.app/logos/adguard.webp",
+          "name": "AdGuard",
+          "source": "local"
         }
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "Search",
+      "description": "Service search across local and external sources"
+    },
+    {
+      "name": "System",
+      "description": "Health checks and diagnostics"
+    }
+  ]
 }

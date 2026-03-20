@@ -28,10 +28,26 @@ impl SearchQuery {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+#[schema(example = json!({
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "logo_url": "https://s3.uha.app/logos/adguard.webp",
+    "name": "AdGuard",
+    "domain": "adguard.com",
+    "source": "local"
+}))]
 pub struct SearchResult {
+    /// For local results — ID from DB; for external — deterministic UUID v5 from domain
     pub id: Uuid,
+    /// Logo image URL
+    #[schema(example = "https://s3.uha.app/logos/adguard.webp")]
     pub logo_url: String,
+    /// Service name
+    #[schema(example = "AdGuard")]
     pub name: String,
+    /// Service domain
+    #[schema(example = "adguard.com")]
     pub domain: String,
+    /// Result source: `local`, `brandfetch`, or `logo.dev`
+    #[schema(example = "local")]
     pub source: String,
 }

@@ -14,12 +14,17 @@ use crate::dto::search::SearchResult;
 #[openapi(
     info(
         title = "Lohikeitto",
-        description = "Brand Meta API",
+        description = "Service catalog API with search, logos, and categories. Aggregates data from a local database and external brand APIs (Brandfetch, logo.dev).",
         version = "1.0.0",
+        license(name = "AGPL-3.0"),
     ),
     servers(
         (url = "https://soup.uha.app", description = "Production"),
         (url = "http://localhost:3000", description = "Local development"),
+    ),
+    tags(
+        (name = "Search", description = "Service search across local and external sources"),
+        (name = "System", description = "Health checks and diagnostics"),
     ),
     paths(health::health_check, search::search),
     components(schemas(
@@ -30,12 +35,12 @@ use crate::dto::search::SearchResult;
 )]
 struct ApiDoc;
 
-// Return the generated OpenAPI spec
+/// Return the generated OpenAPI spec
 pub fn openapi_spec() -> utoipa::openapi::OpenApi {
     ApiDoc::openapi()
 }
 
-// Build the application router with all routes
+/// Build the application router with all routes
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health::health_check))
