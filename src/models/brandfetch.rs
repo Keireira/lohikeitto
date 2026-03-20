@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub struct BrandfetchItem {
+pub struct BFSearchItem {
     #[allow(dead_code)]
     pub claimed: bool,
     #[serde(rename = "brandId")]

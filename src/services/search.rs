@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::config::Config;
 
 use crate::dto::search::{SearchResult, SearchSources, Source};
-use crate::models::brandfetch::BrandfetchItem;
-use crate::models::logodev::LogoDevItem;
+use crate::models::brandfetch::BFSearchItem;
+use crate::models::logodev::LDSearchItem;
 use crate::models::service::ServiceRow;
 
 pub async fn search(
@@ -87,7 +87,7 @@ async fn search_brandfetch(http: &Client, client_id: &str, q: &str) -> Vec<Searc
     url.path_segments_mut().unwrap().pop().push(q);
     url.query_pairs_mut().append_pair("c", client_id);
 
-    let items: Vec<BrandfetchItem> = match http.get(url.as_str()).send().await {
+    let items: Vec<BFSearchItem> = match http.get(url.as_str()).send().await {
         Ok(resp) if resp.status().is_success() => resp.json().await.unwrap_or_else(|e| {
             warn!(error = %e, "failed to parse brandfetch response");
             vec![]
@@ -131,7 +131,7 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
     let mut logo_url = url::Url::parse("https://api.logo.dev/search").unwrap();
     logo_url.query_pairs_mut().append_pair("q", q);
 
-    let items: Vec<LogoDevItem> = match http.get(logo_url.as_str()).bearer_auth(sk).send().await {
+    let items: Vec<LDSearchItem> = match http.get(logo_url.as_str()).bearer_auth(sk).send().await {
         Ok(resp) if resp.status().is_success() => resp.json().await.unwrap_or_else(|e| {
             warn!(error = %e, "failed to parse logo.dev response");
             vec![]
