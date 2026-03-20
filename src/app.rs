@@ -102,7 +102,7 @@ pub fn build(state: AppState, metrics_handle: PrometheusHandle) -> Router {
         ))
         .layer(governor_limiter)
         // Request body limit (1 MB)
-        .layer(RequestBodyLimitLayer::new(1 * 1024 * 1024))
+        .layer(RequestBodyLimitLayer::new(1024 * 1024))
         // Per-request timeout (30 seconds)
         .layer(TimeoutLayer::with_status_code(
             axum::http::StatusCode::REQUEST_TIMEOUT,
@@ -114,7 +114,9 @@ pub fn build(state: AppState, metrics_handle: PrometheusHandle) -> Router {
 }
 
 fn cors_layer(allowed_origins: &[String]) -> CorsLayer {
-    if allowed_origins.is_empty() {
+    let is_any = allowed_origins.is_empty() || allowed_origins.iter().any(|o| o.trim() == "*");
+
+    if is_any {
         CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
@@ -124,6 +126,7 @@ fn cors_layer(allowed_origins: &[String]) -> CorsLayer {
             .iter()
             .filter_map(|o| o.parse().ok())
             .collect();
+
         CorsLayer::new()
             .allow_origin(origins)
             .allow_methods(Any)
