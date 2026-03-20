@@ -1,37 +1,50 @@
-use axum::Router;
+mod health;
+mod search;
+
+use axum::{Json, Router, routing::get};
+use tower_http::compression::CompressionLayer;
+use utoipa::OpenApi;
 
 use crate::app::AppState;
-use crate::error::AppError;
+use crate::dto::health::HealthResponse;
+use crate::dto::internal::ErrorResponse;
+use crate::dto::search::SearchResult;
 
-mod admin;
-mod health;
-mod init;
-mod search;
-mod services;
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Lohikeitto",
+        description = "Service catalog API with search, logos, and categories. Aggregates data from a local database and external brand APIs (Brandfetch, logo.dev).",
+        version = "1.0.0",
+        license(name = "AGPL-3.0"),
+    ),
+    servers(
+        (url = "https://soup.uha.app", description = "Production"),
+        (url = "http://localhost:3000", description = "Local development"),
+    ),
+    tags(
+        (name = "Search", description = "Service search across local and external sources"),
+        (name = "System", description = "Health checks and diagnostics"),
+    ),
+    paths(health::health_check, search::search),
+    components(schemas(
+        HealthResponse,
+        ErrorResponse,
+        SearchResult,
+    ))
+)]
+struct ApiDoc;
 
-pub fn public_routes() -> Router<AppState> {
-    Router::new()
-        .merge(health::routes())
-        .merge(search::routes())
-        .merge(services::routes())
-        .merge(init::routes())
+/// Return the generated OpenAPI spec
+pub fn openapi_spec() -> utoipa::openapi::OpenApi {
+    ApiDoc::openapi()
 }
 
-pub fn admin_routes() -> Router<AppState> {
+/// Build the application router with all routes
+pub fn router() -> Router<AppState> {
     Router::new()
-        .merge(admin::routes())
-}
-
-pub fn check_admin(state: &AppState, auth_header: Option<&str>) -> Result<(), AppError> {
-    use subtle::ConstantTimeEq;
-
-    let token = auth_header
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized)?;
-
-    if token.as_bytes().ct_eq(state.admin_token.as_bytes()).into() {
-        Ok(())
-    } else {
-        Err(AppError::Unauthorized)
-    }
+        .route("/health", get(health::health_check))
+        .route("/search", get(search::search))
+        .route("/openapi.json", get(|| async { Json(ApiDoc::openapi()) }))
+        .layer(CompressionLayer::new().gzip(true).br(true))
 }

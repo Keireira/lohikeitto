@@ -1,30 +1,16 @@
 {
-  "tab_size": 2,
-  "hard_tabs": true,
-  "formatter": {
-    "external": {
-      "command": "npx",
-      "arguments": ["prettier", "--stdin-filepath", "{buffer_path}"],
-    },
-  },
-  "format_on_save": "on",
-  "ensure_final_newline_on_save": true,
-  "remove_trailing_whitespace_on_save": true,
-  "languages": {
-    "JSON": {
-      "tab_size": 2,
-      "hard_tabs": false,
-    },
-    "YAML": {
-      "tab_size": 2,
-      "hard_tabs": false,
-    },
-    "SVG": {
-      "tab_size": 2,
-      "hard_tabs": false,
-    },
-    "Markdown": {
-      "remove_trailing_whitespace_on_save": false,
-    },
-  },
+	"languages": {
+		"TSX": {
+			"formatter": "language_server",
+			"language_servers": ["biome", "!prettier"]
+		},
+		"TypeScript": {
+			"formatter": "language_server",
+			"language_servers": ["biome", "!prettier"]
+		},
+		"JavaScript": {
+			"formatter": "language_server",
+			"language_servers": ["biome", "!prettier"]
+		}
+	}
 }
