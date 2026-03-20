@@ -16,7 +16,7 @@ const ServiceDetail = ({
 	onSave,
 	onStar,
 	onSyncLogos,
-	onSaveLogo,
+	onSaveLogo
 }: Props) => {
 	const [editing, setEditing] = useState(false);
 	const [countries, setCountries] = useState<string[]>(service.countries ?? []);
@@ -55,7 +55,7 @@ const ServiceDetail = ({
 			ref_link: refLinkRef.current?.textContent?.trim() || null,
 			colors: { primary: color },
 			countries,
-			category_id: categoryRef.current?.value || null,
+			category_id: categoryRef.current?.value || null
 		};
 
 		onSave(body);

@@ -1,13 +1,4 @@
 {
-  "title": "Documentation",
-  "pages": [
-    "---Introduction---",
-    "index",
-    "getting-started",
-    "---API---",
-    "api",
-    "---Reference---",
-    "database",
-    "security"
-  ]
+  "title": "Lohikeitto",
+  "pages": ["index", "deployment"]
 }

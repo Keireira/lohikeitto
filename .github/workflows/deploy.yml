@@ -1,38 +1,65 @@
-name: Deploy image
+name: Deploy
 
 on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "admin/**"
+      - "*.md"
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Create docker image"]
-    types:
-      - completed
-    branches:
-      - master
-  workflow_call:
-    secrets:
-      DOCKER_REGISTRY_USERNAME:
-        required: true
-      DOCKER_REGISTRY_PASSWORD:
-        required: true
-      HOSTNAME:
-        required: true
-      AUTH_USER:
-        required: true
-      AUTH_KEY:
-        required: true
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
+    name: Build & push image
     runs-on: ubuntu-latest
-    environment: production
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    environment: registry
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Log in to registry
+        uses: docker/login-action@v4
+        with:
+          registry: registry.keireira.com
+          username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: registry.keireira.com/lohikeitto:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Registry cleanup
+        run: |
+          curl -sf -H 'X-Webhook-Token: ${{ secrets.HOOK_TOKEN }}' \
+            https://hooks.keireira.com/registry-cleanup
+
+  deploy:
+    name: Deploy to production
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: Copy docker-compose to server
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.HOSTNAME }}
           username: ${{ secrets.AUTH_USER }}
@@ -41,7 +68,7 @@ jobs:
           target: "/opt/lohikeitto"
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.HOSTNAME }}
           username: ${{ secrets.AUTH_USER }}
@@ -50,11 +77,13 @@ jobs:
             cd /opt/lohikeitto
             docker network inspect sharkie-network >/dev/null 2>&1 || { echo "ERROR: sharkie-network not found. Start sharkie first."; exit 1; }
 
-            # Ensure database exists
             docker exec SHARKIE-DB psql -U sharkie -tc "SELECT 1 FROM pg_database WHERE datname='lohikeitto'" | grep -q 1 \
               || docker exec SHARKIE-DB psql -U sharkie -c "CREATE DATABASE lohikeitto;"
 
-            docker login registry.keireira.com -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" -p "${{ secrets.DOCKER_REGISTRY_PASSWORD }}"
+            docker login registry.keireira.com \
+              -u "${{ secrets.DOCKER_REGISTRY_USERNAME }}" \
+              -p "${{ secrets.DOCKER_REGISTRY_PASSWORD }}"
             docker compose pull
             docker compose up -d --remove-orphans
             docker image prune -f
+            docker logout registry.keireira.com

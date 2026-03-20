@@ -1,18 +1,46 @@
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::routing::get;
-use axum::Router;
+use axum::{
+    Json,
+    extract::State,
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
+};
 
 use crate::app::AppState;
+use crate::dto::health::HealthResponse;
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/health", get(health_check))
-}
+#[utoipa::path(
+    get,
+    path = "/health",
+    tag = "System",
+    summary = "Health check",
+    description = "Returns the service status and database connectivity. Used by orchestrators (Docker, k8s) for liveness probes.",
+    responses(
+        (status = 200, description = "Service is healthy", body = HealthResponse),
+        (status = 503, description = "Service is degraded (database unreachable)", body = HealthResponse),
+    )
+)]
+pub async fn health_check(State(state): State<AppState>) -> Response {
+    let db_ok = sqlx::query_scalar::<_, i32>("SELECT 1")
+        .fetch_one(&state.db)
+        .await
+        .is_ok();
 
-async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
-    match sqlx::query("SELECT 1").execute(&state.db).await {
-        Ok(_) => (StatusCode::OK, "ok"),
-        Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "db down"),
-    }
+    let status = if db_ok {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    let body = Json(HealthResponse {
+        status: if db_ok { "ok" } else { "degraded" }.into(),
+        message: "Lohikeitto is ready".into(),
+        db: db_ok,
+    });
+
+    let mut response = (status, body).into_response();
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+
+    response
 }

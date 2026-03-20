@@ -1,60 +1,50 @@
-use axum::extract::{Query, State};
-use axum::routing::get;
-use axum::Router;
+use axum::{
+    Json,
+    extract::{Query, State},
+};
 
 use crate::app::AppState;
-use crate::db::services::search_services;
-use crate::dto::service::{SearchQuery, SearchResult};
-use crate::error::{ApiOk, AppError};
-use crate::logo;
-use crate::services::brandfetch;
+use crate::dto::internal::ErrorResponse;
+use crate::dto::search::{SearchQuery, SearchResult};
+use crate::error::ApiError;
+use crate::services::search as search_service;
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/search", get(search))
-}
-
-async fn search(
+#[utoipa::path(
+    get,
+    path = "/search",
+    tag = "Search",
+    summary = "Search services",
+    description = "Search for services across local database and external APIs (Brandfetch, logo.dev). Results are deduplicated by domain with priority: local > brandfetch > logo.dev.",
+    params(
+        ("q" = String, Query, description = "Search string (required, non-empty)"),
+        ("sources" = String, Query, description = "Comma-separated sources: `local`, `brandfetch`, `logodev`. Aliases: `external` (brandfetch + logodev), `all` (default)"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = [SearchResult],
+            example = json!([
+                {
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "logo_url": "https://s3.uha.app/logos/adguard.webp",
+                    "name": "AdGuard",
+                    "domain": "adguard.com",
+                    "source": "local"
+                }
+            ])
+        ),
+        (status = 400, description = "Invalid input (empty or missing `q`)", body = ErrorResponse),
+    )
+)]
+pub async fn search(
     State(state): State<AppState>,
     Query(params): Query<SearchQuery>,
-) -> Result<ApiOk<Vec<SearchResult>>, AppError> {
-    let q = params
-        .q
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Missing required parameter: q".into()))?;
-
-    if q.len() > 200 {
-        return Err(AppError::BadRequest("Query too long".into()));
+) -> Result<Json<Vec<SearchResult>>, ApiError> {
+    let q = params.q.trim();
+    if q.is_empty() {
+        return Err(ApiError::InvalidInput("q is required".into()));
     }
 
-    let count = params.count.unwrap_or(10).clamp(1, 10);
+    let results =
+        search_service::search(&state.db, &state.http, &state.config, q, &params.sources).await;
 
-    let rows = search_services(&state.db, &q, count).await?;
-
-    let mut results: Vec<SearchResult> = rows
-        .into_iter()
-        .map(|row| {
-            let url = logo::logo_url(&state.logo_base_url, &row.slug);
-            SearchResult::from_row(row, url)
-        })
-        .collect();
-
-    if (results.len() as i64) < count {
-        let remaining = (count - results.len() as i64) as usize;
-        match brandfetch::search(&state.http, &state.brandfetch_client_id, &q).await {
-            Ok(entries) => {
-                for entry in entries.into_iter().take(remaining) {
-                    results.push(SearchResult::Brandfetch {
-                        name: entry.name,
-                        domain: entry.domain,
-                        icon: entry.icon,
-                    });
-                }
-            }
-            Err(e) => {
-                tracing::warn!(%e, "brandfetch search fallback failed");
-            }
-        }
-    }
-
-    Ok(ApiOk(results))
+    Ok(Json(results))
 }
