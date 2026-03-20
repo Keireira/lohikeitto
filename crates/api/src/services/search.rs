@@ -10,7 +10,7 @@ use crate::config::Config;
 use crate::dto::search::{SearchResult, SearchSources, Source};
 use crate::models::brandfetch::BFSearchItem;
 use crate::models::logodev::LDSearchItem;
-use crate::models::service::ServiceRow;
+use shared::models::service::ServiceRow;
 
 pub async fn search(
     pool: &PgPool,

@@ -1,5 +1,5 @@
 .PHONY: dev dev-admin dev-docs openapi \
-       build \
+       build build-api build-admin build-docs \
        up down logs ps \
        lint format check \
        migrate \
@@ -7,23 +7,31 @@
 
 # ─── Development ────────────────────────────────────
 
-dev: ## Start backend dev server (port 3000)
-	cargo run
+dev: ## Start API dev server (port 3000)
+	cargo run -p lohikeitto
 
-dev-admin: ## Start admin panel dev server (port 3001)
-	pnpm --prefix admin run dev --port 3001
+dev-admin: ## Start admin backend + frontend (port 3002)
+	cargo run -p admin & ADMIN_PID=$$!; \
+	while ! curl -s http://localhost:1337/health > /dev/null 2>&1; do sleep 0.5; done; \
+	pnpm --prefix admin run dev --port 3002 & wait $$ADMIN_PID
 
-dev-docs: openapi ## Start docs dev server
+dev-docs: openapi ## Start docs dev server (port 3333)
 	pnpm --prefix docs run dev --port 3333
 
 openapi: ## Regenerate docs/public/openapi.json from Rust source
-	cargo run -- --openapi > docs/public/openapi.json
+	cargo run -p lohikeitto -- --openapi > docs/public/openapi.json
 	@echo "OpenAPI spec written to docs/public/openapi.json"
 
 # ─── Build ──────────────────────────────────────────
 
-build: ## Build Rust backend (release)
+build: ## Build all crates (release)
 	cargo build --release
+
+build-api: ## Build API only (release)
+	cargo build --release -p lohikeitto
+
+build-admin: ## Build admin only (release)
+	cargo build --release -p admin
 
 build-docs: ## Build documentation site
 	pnpm --prefix docs run build
@@ -46,17 +54,17 @@ ps: ## Show running containers
 
 lint: ## Run all linters (biome + clippy)
 	pnpm biome check .
-	cargo clippy -- -D warnings
+	cargo clippy --workspace -- -D warnings
 
 format: ## Format all code (biome + cargo fmt)
 	pnpm biome check --fix --unsafe .
 	pnpm biome format --write .
-	cargo fmt
+	cargo fmt --all
 
 check: ## Run all checks (lint + cargo check + clippy)
 	pnpm biome check .
-	cargo check
-	cargo clippy -- -D warnings
+	cargo check --workspace
+	cargo clippy --workspace -- -D warnings
 
 # ─── Database ───────────────────────────────────────
 
@@ -67,7 +75,6 @@ migrate: ## Run SQLx database migrations
 
 clean: ## Clean all build artifacts
 	cargo clean
-	rm -rf admin/.next admin/out
 	rm -rf docs/.next docs/out
 
 # ─── Misc ───────────────────────────────────────────

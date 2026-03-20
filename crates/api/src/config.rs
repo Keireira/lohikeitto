@@ -7,6 +7,7 @@ pub struct Config {
     pub allowed_origins: Vec<String>,
 
     pub brandfetch_client_id: String,
+    pub brandfetch_secret: String,
     pub logodev_pk: String,
     pub logodev_sk: String,
 
@@ -16,7 +17,7 @@ pub struct Config {
     pub s3_bucket: String,
     pub s3_base_url: String,
 
-    pub admin_token: String,
+    pub admin_token: Option<String>,
 }
 
 impl Config {
@@ -36,6 +37,8 @@ impl Config {
             // External brandfetchers
             brandfetch_client_id: std::env::var("BRANDFETCH_CLIENT_ID")
                 .expect("BRANDFETCH_CLIENT_ID must be set"),
+            brandfetch_secret: std::env::var("BRANDFETCH_SECRET")
+                .expect("BRANDFETCH_SECRET must be set"),
             logodev_pk: std::env::var("LOGODEV_PK").expect("LOGODEV_PK must be set"),
             logodev_sk: std::env::var("LOGODEV_SK").expect("LOGODEV_SK must be set"),
 
@@ -49,7 +52,7 @@ impl Config {
             s3_base_url: std::env::var("S3_BASE_URL").expect("S3_BASE_URL must be set"),
 
             // Admin
-            admin_token: std::env::var("ADMIN_TOKEN").expect("ADMIN_TOKEN must be set"),
+            admin_token: std::env::var("ADMIN_TOKEN").ok(),
         }
     }
 }
