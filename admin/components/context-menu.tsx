@@ -69,10 +69,7 @@ const ContextMenu = ({ x, y, items, onClose }: ContextMenuProps) => {
 							item.onClick();
 						}}
 						className={`w-full text-left px-4 py-2 text-[13px] flex items-center gap-3 transition-colors disabled:opacity-30 cursor-pointer
-							${item.danger
-								? 'text-danger hover:bg-danger/10'
-								: 'text-foreground hover:bg-muted'
-							}`}
+							${item.danger ? 'text-danger hover:bg-danger/10' : 'text-foreground hover:bg-muted'}`}
 					>
 						{item.icon && <span className="w-5 text-center text-sm opacity-70">{item.icon}</span>}
 						<span className="font-medium">{item.label}</span>

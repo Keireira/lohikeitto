@@ -4,12 +4,6 @@ import { useEffect } from 'react';
 import useDownloadStore from '@/lib/download-store';
 import type { DownloadJob } from '@/lib/download-store';
 
-const formatBytes = (bytes: number): string => {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
 const PhaseIcon = ({ phase, errorAt }: { phase: string; errorAt: string | null }) => {
 	if (errorAt) return <span className="text-danger">{'✕'}</span>;
 	if (phase === 'done') return <span className="text-success">{'✓'}</span>;
@@ -46,15 +40,31 @@ const JobRow = ({ job }: { job: DownloadJob }) => {
 					</p>
 				</div>
 				{isActive && (
-					<button type="button" onClick={() => cancel(job.id)} className="text-muted-fg hover:text-danger text-[10px] cursor-pointer" title="Cancel">Cancel</button>
+					<button
+						type="button"
+						onClick={() => cancel(job.id)}
+						className="text-muted-fg hover:text-danger text-[10px] cursor-pointer"
+						title="Cancel"
+					>
+						Cancel
+					</button>
 				)}
 				{(isDone || isError) && (
-					<button type="button" onClick={() => remove(job.id)} className="text-muted-fg hover:text-foreground text-xs cursor-pointer">{'✕'}</button>
+					<button
+						type="button"
+						onClick={() => remove(job.id)}
+						className="text-muted-fg hover:text-foreground text-xs cursor-pointer"
+					>
+						{'✕'}
+					</button>
 				)}
 			</div>
 			{isActive && (
 				<div className="h-1 rounded-full bg-muted overflow-hidden ml-6">
-					<div className={`h-full rounded-full transition-all duration-300 ${job.phase === 'fetching' ? 'bg-accent' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
+					<div
+						className={`h-full rounded-full transition-all duration-300 ${job.phase === 'fetching' ? 'bg-accent' : 'bg-accent'}`}
+						style={{ width: `${pct}%` }}
+					/>
 				</div>
 			)}
 		</div>
@@ -94,7 +104,7 @@ const DownloadWidget = () => {
 	if (jobList.length === 0) return null;
 
 	const active = jobList.filter((j) => j.phase !== 'done' && j.phase !== 'error');
-	const pct = typeof OverallProgress === 'function' ? OverallProgress({ jobs: jobList }) as number : 100;
+	const pct = typeof OverallProgress === 'function' ? (OverallProgress({ jobs: jobList }) as number) : 100;
 	const isDone = active.length === 0;
 
 	if (minimized) {
@@ -113,7 +123,10 @@ const DownloadWidget = () => {
 				<svg width={44} height={44} className="absolute -rotate-90">
 					<circle cx={22} cy={22} r={radius} fill="none" stroke="var(--border)" strokeWidth={2.5} />
 					<circle
-						cx={22} cy={22} r={radius} fill="none"
+						cx={22}
+						cy={22}
+						r={radius}
+						fill="none"
 						stroke={isDone ? 'var(--success)' : 'var(--accent)'}
 						strokeWidth={2.5}
 						strokeDasharray={circumference}
@@ -122,9 +135,7 @@ const DownloadWidget = () => {
 						className="transition-all duration-300"
 					/>
 				</svg>
-				<span className="text-[9px] font-bold text-foreground z-10">
-					{isDone ? '✓' : `${active.length}`}
-				</span>
+				<span className="text-[9px] font-bold text-foreground z-10">{isDone ? '✓' : `${active.length}`}</span>
 			</button>
 		);
 	}
@@ -134,19 +145,31 @@ const DownloadWidget = () => {
 			<div className="px-4 py-3 border-b border-border flex items-center justify-between">
 				<span className="text-xs font-medium text-foreground">Downloads ({jobList.length})</span>
 				<div className="flex items-center gap-2">
-					<button type="button" onClick={toggleMinimized} className="text-muted-fg hover:text-foreground text-xs cursor-pointer rounded-full border border-border px-2 py-0.5">Minimize</button>
+					<button
+						type="button"
+						onClick={toggleMinimized}
+						className="text-muted-fg hover:text-foreground text-xs cursor-pointer rounded-full border border-border px-2 py-0.5"
+					>
+						Minimize
+					</button>
 					{isDone && (
 						<button
 							type="button"
-							onClick={() => { for (const j of jobList) useDownloadStore.getState().removeJob(j.id); }}
+							onClick={() => {
+								for (const j of jobList) useDownloadStore.getState().removeJob(j.id);
+							}}
 							className="text-muted-fg hover:text-foreground text-xs cursor-pointer"
 							title="Clear all"
-						>{'✕'}</button>
+						>
+							{'✕'}
+						</button>
 					)}
 				</div>
 			</div>
 			<div className="px-4 py-2 max-h-60 overflow-y-auto divide-y divide-border">
-				{jobList.map((j) => <JobRow key={j.id} job={j} />)}
+				{jobList.map((j) => (
+					<JobRow key={j.id} job={j} />
+				))}
 			</div>
 			{!isDone && (
 				<div className="h-1 bg-muted">

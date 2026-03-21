@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import AddServiceDialog from '@/components/add-service-dialog';
 import Squircle from '@/components/squircle';
+import { toast } from '@/lib/toast';
 import type { LimbusT } from '@/lib/types';
 
 const API_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
@@ -34,12 +36,13 @@ const LimbusTable = ({ data: initialData }: { data: LimbusT[] }) => {
 	const [data, setData] = useState(initialData);
 	const [search, setSearch] = useState('');
 	const [approving, setApproving] = useState<string | null>(null);
+	const [showAddDialog, setShowAddDialog] = useState(false);
 
 	const filtered = search
-		? data.filter((e) =>
-			e.name.toLowerCase().includes(search.toLowerCase()) ||
-			e.domain.toLowerCase().includes(search.toLowerCase())
-		)
+		? data.filter(
+				(e) =>
+					e.name.toLowerCase().includes(search.toLowerCase()) || e.domain.toLowerCase().includes(search.toLowerCase())
+			)
 		: data;
 
 	const handleReject = async (id: string) => {
@@ -49,7 +52,7 @@ const LimbusTable = ({ data: initialData }: { data: LimbusT[] }) => {
 			if (!res.ok) throw new Error(`Failed: ${res.status}`);
 			setData((prev) => prev.filter((e) => e.id !== id));
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Reject failed');
+			toast.error(e instanceof Error ? e.message : 'Reject failed');
 		}
 	};
 
@@ -71,7 +74,7 @@ const LimbusTable = ({ data: initialData }: { data: LimbusT[] }) => {
 			if (!res.ok) throw new Error(`Failed: ${res.status}`);
 			setData((prev) => prev.filter((e) => e.id !== entry.id));
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Approve failed');
+			toast.error(e instanceof Error ? e.message : 'Approve failed');
 		} finally {
 			setApproving(null);
 		}
@@ -88,6 +91,13 @@ const LimbusTable = ({ data: initialData }: { data: LimbusT[] }) => {
 					className="rounded-xl bg-muted px-4 py-2.5 text-sm placeholder:text-muted-fg focus:outline-none focus:ring-2 focus:ring-accent/50 w-64"
 				/>
 				<span className="text-xs text-muted-fg">{filtered.length} entries</span>
+				<button
+					type="button"
+					onClick={() => setShowAddDialog(true)}
+					className="rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-white hover:opacity-90 transition-colors cursor-pointer"
+				>
+					+ Add to Limbus
+				</button>
 			</div>
 
 			<div className="rounded-2xl bg-surface border border-border overflow-hidden">
@@ -98,7 +108,9 @@ const LimbusTable = ({ data: initialData }: { data: LimbusT[] }) => {
 							<th className="px-8 py-5 text-[11px] font-bold text-muted-fg tracking-wider uppercase">Domain</th>
 							<th className="px-8 py-5 text-[11px] font-bold text-muted-fg tracking-wider uppercase">Source</th>
 							<th className="px-8 py-5 text-[11px] font-bold text-muted-fg tracking-wider uppercase">Discovered</th>
-							<th className="px-8 py-5 text-[11px] font-bold text-muted-fg tracking-wider uppercase text-right">Actions</th>
+							<th className="px-8 py-5 text-[11px] font-bold text-muted-fg tracking-wider uppercase text-right">
+								Actions
+							</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -136,9 +148,7 @@ const LimbusTable = ({ data: initialData }: { data: LimbusT[] }) => {
 								<td className="px-8 py-5">
 									<SourceBadge source={entry.source} />
 								</td>
-								<td className="px-8 py-5 text-sm text-muted-fg">
-									{formatDate(entry.created_at)}
-								</td>
+								<td className="px-8 py-5 text-sm text-muted-fg">{formatDate(entry.created_at)}</td>
 								<td className="px-8 py-5">
 									<div className="flex items-center justify-end gap-2">
 										<button
@@ -163,6 +173,14 @@ const LimbusTable = ({ data: initialData }: { data: LimbusT[] }) => {
 					</tbody>
 				</table>
 			</div>
+
+			{showAddDialog && (
+				<AddServiceDialog
+					mode="limbus"
+					onClose={() => setShowAddDialog(false)}
+					onCreated={(item) => setData((prev) => [item as LimbusT, ...prev])}
+				/>
+			)}
 		</div>
 	);
 };

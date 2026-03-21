@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useState } from 'react';
 
 type SquircleProps = {
 	size: number;
@@ -12,45 +12,43 @@ type SquircleProps = {
 	style?: React.CSSProperties;
 };
 
+const squirclePath = (s: number) =>
+	`path("M ${s * 0.5} 0 C ${s * 0.8275} 0 ${s} ${s * 0.1725} ${s} ${s * 0.5} C ${s} ${s * 0.8275} ${s * 0.8275} ${s} ${s * 0.5} ${s} C ${s * 0.1725} ${s} 0 ${s * 0.8275} 0 ${s * 0.5} C 0 ${s * 0.1725} ${s * 0.1725} 0 ${s * 0.5} 0")`;
+
 const Squircle = ({ size, color, src, fallback, className, onClick, style }: SquircleProps) => {
 	const [imgOk, setImgOk] = useState(false);
 
-	useEffect(() => {
-		if (!src) { setImgOk(false); return; }
-		const img = new Image();
-		img.onload = () => setImgOk(true);
-		img.onerror = () => setImgOk(false);
-		img.src = src;
-	}, [src]);
-
-	const id = useId();
-
 	return (
-		<svg
-			width={size}
-			height={size}
-			viewBox="0 0 1 1"
-			className={`shrink-0 ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className ?? ''}`}
+		<div
+			className={`relative shrink-0 overflow-hidden ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className ?? ''}`}
+			style={{
+				width: size,
+				height: size,
+				clipPath: squirclePath(size),
+				backgroundColor: color ?? '#888',
+				...style,
+			}}
 			onClick={onClick}
-			style={style}
 		>
-			<defs>
-				<clipPath id={id}>
-					<path d="M 0.5 0 C 0.8275 0, 1 0.1725, 1 0.5 C 1 0.8275, 0.8275 1, 0.5 1 C 0.1725 1, 0 0.8275, 0 0.5 C 0 0.1725, 0.1725 0, 0.5 0" />
-				</clipPath>
-			</defs>
-			<g clipPath={`url(#${id})`}>
-				<rect width="1" height="1" fill={color ?? '#888'} />
-				{imgOk && src && (
-					<image href={src} width="1" height="1" preserveAspectRatio="xMidYMid slice" />
-				)}
-				{!imgOk && fallback && (
-					<text x="0.5" y="0.5" textAnchor="middle" dominantBaseline="central" fill="currentColor" fontSize="0.4" fontWeight="bold">
-						{fallback}
-					</text>
-				)}
-			</g>
-		</svg>
+			{src && (
+				<img
+					src={src}
+					alt=""
+					className="absolute inset-0 w-full h-full object-cover"
+					style={{ display: imgOk ? 'block' : 'none' }}
+					onLoad={() => setImgOk(true)}
+					onError={() => setImgOk(false)}
+				/>
+			)}
+			{!imgOk && fallback && (
+				<span
+					className="absolute inset-0 flex items-center justify-center font-bold"
+					style={{ fontSize: size * 0.4, color: style?.color ?? 'white' }}
+				>
+					{fallback}
+				</span>
+			)}
+		</div>
 	);
 };
 

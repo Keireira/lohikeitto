@@ -48,6 +48,43 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<LimbusItem
     Ok(Json(items))
 }
 
+/// Create a new limbus entry.
+#[derive(Debug, Deserialize)]
+pub struct CreateLimbus {
+    pub name: String,
+    pub domain: String,
+    pub logo_url: Option<String>,
+    pub source: String,
+}
+
+pub async fn create(
+    State(state): State<AdminState>,
+    Json(req): Json<CreateLimbus>,
+) -> Result<Json<LimbusItem>, AdminError> {
+    let row = sqlx::query_as::<sqlx::Postgres, LimbusWithDate>(
+        r#"
+        INSERT INTO limbus (name, domain, logo_url, source)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, name, domain, logo_url, source, created_at
+        "#,
+    )
+    .bind(&req.name)
+    .bind(&req.domain)
+    .bind(&req.logo_url)
+    .bind(&req.source)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(LimbusItem {
+        id: row.id,
+        name: row.name,
+        domain: row.domain,
+        logo_url: row.logo_url,
+        source: row.source,
+        created_at: row.created_at.to_rfc3339(),
+    }))
+}
+
 /// Delete a limbus entry (reject it).
 pub async fn remove(
     State(state): State<AdminState>,

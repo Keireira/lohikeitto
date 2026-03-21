@@ -9,6 +9,9 @@ pub struct Config {
     pub s3_access_key: String,
     pub s3_secret_key: String,
     pub s3_bucket: String,
+    pub brandfetch_client_id: Option<String>,
+    pub logodev_pk: Option<String>,
+    pub logodev_sk: Option<String>,
 }
 
 impl Config {
@@ -28,6 +31,9 @@ impl Config {
             s3_secret_key: std::env::var("CF_R2_ACCOUNT_SECRET_ACCESS_KEY")
                 .expect("CF_R2_ACCOUNT_SECRET_ACCESS_KEY must be set"),
             s3_bucket: std::env::var("CF_R2_BUCKET").expect("CF_R2_BUCKET must be set"),
+            brandfetch_client_id: std::env::var("BRANDFETCH_CLIENT_ID").ok(),
+            logodev_pk: std::env::var("LOGODEV_PK").ok(),
+            logodev_sk: std::env::var("LOGODEV_SK").ok(),
         }
     }
 }

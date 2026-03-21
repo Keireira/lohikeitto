@@ -13,16 +13,21 @@ type SearchableSelectProps = {
 	className?: string;
 };
 
-const SearchableSelect = ({ options, value, onChange, placeholder = 'Select...', allLabel = 'All', className }: SearchableSelectProps) => {
+const SearchableSelect = ({
+	options,
+	value,
+	onChange,
+	placeholder = 'Select...',
+	allLabel = 'All',
+	className
+}: SearchableSelectProps) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState('');
 	const ref = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	const selected = options.find((o) => o.value === value);
-	const filtered = search
-		? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
-		: options;
+	const filtered = search ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase())) : options;
 
 	useEffect(() => {
 		if (!open) return;
@@ -31,7 +36,10 @@ const SearchableSelect = ({ options, value, onChange, placeholder = 'Select...',
 			if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
 		};
 		const handleEsc = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); }
+			if (e.key === 'Escape') {
+				e.stopPropagation();
+				setOpen(false);
+			}
 		};
 		document.addEventListener('mousedown', handleClick);
 		document.addEventListener('keydown', handleEsc);
@@ -41,7 +49,9 @@ const SearchableSelect = ({ options, value, onChange, placeholder = 'Select...',
 		};
 	}, [open]);
 
-	useEffect(() => { if (!open) setSearch(''); }, [open]);
+	useEffect(() => {
+		if (!open) setSearch('');
+	}, [open]);
 
 	return (
 		<div ref={ref} className={`relative ${className ?? ''}`}>
@@ -73,7 +83,10 @@ const SearchableSelect = ({ options, value, onChange, placeholder = 'Select...',
 					<div className="max-h-60 overflow-y-auto py-1">
 						<button
 							type="button"
-							onClick={() => { onChange(''); setOpen(false); }}
+							onClick={() => {
+								onChange('');
+								setOpen(false);
+							}}
 							className={`w-full text-left px-4 py-2 text-sm cursor-pointer transition-colors ${!value ? 'bg-accent/5 text-accent font-medium' : 'text-foreground hover:bg-muted'}`}
 						>
 							{allLabel}
@@ -82,16 +95,17 @@ const SearchableSelect = ({ options, value, onChange, placeholder = 'Select...',
 							<button
 								key={o.value}
 								type="button"
-								onClick={() => { onChange(o.value); setOpen(false); }}
+								onClick={() => {
+									onChange(o.value);
+									setOpen(false);
+								}}
 								className={`w-full text-left px-4 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${value === o.value ? 'bg-accent/5 text-accent font-medium' : 'text-foreground hover:bg-muted'}`}
 							>
 								{o.icon}
 								<span className="truncate">{o.label}</span>
 							</button>
 						))}
-						{filtered.length === 0 && (
-							<p className="px-4 py-3 text-sm text-muted-fg">No matches</p>
-						)}
+						{filtered.length === 0 && <p className="px-4 py-3 text-sm text-muted-fg">No matches</p>}
 					</div>
 				</div>
 			)}

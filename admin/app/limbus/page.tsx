@@ -12,10 +12,7 @@ const LimbusPage = async () => {
 
 	return (
 		<>
-			<TopBar
-				title="Limbus"
-				subtitle="Services discovered externally, pending curation"
-			/>
+			<TopBar title="Limbus" subtitle="Services discovered externally, pending curation" />
 			<div className="p-8 space-y-8">
 				<div className="grid grid-cols-4 gap-5">
 					<StatCard label="Pending Review" value={entries.length} />

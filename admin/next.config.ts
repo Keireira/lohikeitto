@@ -8,10 +8,6 @@ const nextConfig: NextConfig = {
 		{
 			source: '/api/:path*',
 			destination: `${ADMIN_API}/:path*`
-		},
-		{
-			source: '/proxy-s3/:path*',
-			destination: `${process.env.S3_BASE_URL ?? 'https://s3.uha.app'}/:path*`
 		}
 	]
 };

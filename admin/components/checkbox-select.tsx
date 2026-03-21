@@ -25,7 +25,10 @@ const CheckboxSelect = ({ options, selected, onChange, label, className }: Check
 			if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
 		};
 		const handleEsc = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); }
+			if (e.key === 'Escape') {
+				e.stopPropagation();
+				setOpen(false);
+			}
 		};
 		document.addEventListener('mousedown', handleClick);
 		document.addEventListener('keydown', handleEsc);
@@ -37,7 +40,8 @@ const CheckboxSelect = ({ options, selected, onChange, label, className }: Check
 
 	const toggle = (value: string) => {
 		const next = new Set(selected);
-		if (next.has(value)) next.delete(value); else next.add(value);
+		if (next.has(value)) next.delete(value);
+		else next.add(value);
 		onChange(next);
 	};
 
@@ -48,7 +52,8 @@ const CheckboxSelect = ({ options, selected, onChange, label, className }: Check
 				onClick={() => setOpen((v) => !v)}
 				className={`rounded-xl bg-muted px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2 ${hasFilter ? 'text-accent font-medium' : 'text-foreground'} ${open ? 'ring-2 ring-accent/50' : ''}`}
 			>
-				{label}{hasFilter ? '*' : ''}
+				{label}
+				{hasFilter ? '*' : ''}
 				<span className="text-[10px] text-muted-fg">{'▾'}</span>
 			</button>
 

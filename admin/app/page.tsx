@@ -1,10 +1,10 @@
 import TopBar from '@/components/top-bar';
 import StatCard from '@/components/stat-card';
 import ServicesTable from '@/components/services-table';
-import { fetchCategories, fetchServices } from '@/lib/api';
+import { fetchCategories, fetchServices, fetchS3Objects } from '@/lib/api';
 
 const Home = async () => {
-	const [services, categories] = await Promise.all([fetchServices(), fetchCategories()]);
+	const [services, categories, s3Objects] = await Promise.all([fetchServices(), fetchCategories(), fetchS3Objects()]);
 	const verified = services.filter((s) => s.verified).length;
 	const catCount = new Set(services.map((s) => s.category?.title).filter(Boolean)).size;
 
@@ -28,7 +28,7 @@ const Home = async () => {
 				}
 			/>
 			<div className="p-8">
-				<ServicesTable data={services} categories={categories} />
+				<ServicesTable data={services} categories={categories} s3Logos={s3Objects.filter((o) => o.key.startsWith('logos/') && !o.key.endsWith('/') && o.size > 0).map((o) => o.key.replace('logos/', '').replace(/\.[^.]+$/, ''))} />
 			</div>
 		</>
 	);

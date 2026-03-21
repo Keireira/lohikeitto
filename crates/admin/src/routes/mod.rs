@@ -1,5 +1,7 @@
+mod database;
 mod health;
 mod limbus;
+mod logos;
 pub mod s3;
 mod services;
 
@@ -12,9 +14,14 @@ pub fn router() -> Router<AdminState> {
     Router::new()
         .route("/health", get(health::health_check))
         .route("/services", get(services::list))
+        .route("/services", post(services::create))
         .route("/services/{id}", put(services::update))
         .route("/categories", get(services::list_categories))
+        .route("/categories", post(services::create_category))
+        .route("/categories/{id}", put(services::update_category))
+        .route("/categories/{id}", delete(services::delete_category))
         .route("/limbus", get(limbus::list))
+        .route("/limbus", post(limbus::create))
         .route("/limbus/{id}", delete(limbus::remove))
         .route("/limbus/{id}/approve", post(limbus::approve))
         .route("/s3", get(s3::list))
@@ -27,4 +34,9 @@ pub fn router() -> Router<AdminState> {
         .route("/s3/copy", post(s3::copy_move))
         .route("/s3/mkdir", post(s3::mkdir))
         .route("/s3/upload/{*key}", put(s3::upload))
+        .route("/logos/fetch", post(logos::fetch_logo))
+        .route("/logos/save", post(logos::save_logo))
+        .route("/db/export", get(database::export_sql))
+        .route("/db/drop", post(database::drop_all))
+        .route("/db/import", post(database::import_sql))
 }

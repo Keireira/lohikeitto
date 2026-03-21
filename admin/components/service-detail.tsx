@@ -2,18 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useHotkey } from '@tanstack/react-hotkeys';
+import { toast } from '@/lib/toast';
 import { API_URL } from '@/lib/api';
 import { contrastText } from '@/lib/color';
+import { getCachedImage, refetchImage } from '@/lib/image-cache';
 import Squircle from '@/components/squircle';
 import type { CategoryT, ServiceT } from '@/lib/types';
 
-const proxyLogoUrl = (url: string): string => {
-	try {
-		return `/proxy-s3${new URL(url).pathname}`;
-	} catch {
-		return url;
-	}
-};
 
 const toHex = (r: number, g: number, b: number): string =>
 	`#${Math.min(255, Math.max(0, r)).toString(16).padStart(2, '0')}${Math.min(255, Math.max(0, g)).toString(16).padStart(2, '0')}${Math.min(255, Math.max(0, b)).toString(16).padStart(2, '0')}`;
@@ -128,15 +123,32 @@ const extractColors = (img: HTMLImageElement): string[] => {
 // ── Component ──────────────────────────────────────
 
 type Props = {
-	service: ServiceT;
+	service?: ServiceT;
 	categories: CategoryT[];
+	prefillSlug?: string;
 	onClose: () => void;
 	onUpdate: (updated: ServiceT) => void;
 };
 
-const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
+const EMPTY_SERVICE: ServiceT = {
+	id: '',
+	name: '',
+	slug: '',
+	domains: [],
+	verified: false,
+	category: null,
+	colors: { primary: '#0053db' },
+	logo_url: '',
+	ref_link: null,
+};
+
+const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose, onUpdate }: Props) => {
+	const isCreateMode = !serviceProp;
+	const service = serviceProp ?? EMPTY_SERVICE;
+
 	const [name, setName] = useState(service.name);
-	const [slug, setSlug] = useState(service.slug);
+	const [slug, setSlug] = useState(prefillSlug || service.slug);
+	const [committedSlug, setCommittedSlug] = useState(prefillSlug || service.slug);
 	const [domains, setDomains] = useState<string[]>(service.domains);
 	const [domainInput, setDomainInput] = useState('');
 	const [categoryId, setCategoryId] = useState(service.category?.id ?? '');
@@ -151,13 +163,18 @@ const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
 	const [samples, setSamples] = useState<string[]>([]);
 	const [excludedSamples, setExcludedSamples] = useState<Set<number>>(new Set());
 	const [logoOk, setLogoOk] = useState(false);
+	const [logoBlobUrl, setLogoBlobUrl] = useState<string | undefined>(undefined);
+	const [logoFetch, setLogoFetch] = useState<{ url: string; source: string; size: number; width: number; height: number; format: string } | null>(null);
+	const [logoFetching, setLogoFetching] = useState<string | null>(null);
+	const [logoSaving, setLogoSaving] = useState(false);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 
-	const proxiedLogo = proxyLogoUrl(service.logo_url);
+	const proxiedLogo = committedSlug ? `${API_URL}/s3/file/logos/${committedSlug}.webp` : '';
 
 	useEffect(() => {
 		setName(service.name);
-		setSlug(service.slug);
+		setSlug(prefillSlug || service.slug);
+		setCommittedSlug(prefillSlug || service.slug);
 		setDomains(service.domains);
 		setDomainInput('');
 		setCategoryId(service.category?.id ?? '');
@@ -168,37 +185,33 @@ const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
 		setSamplerOpen(false);
 		setSamples([]);
 		setExcludedSamples(new Set());
+		setLogoFetch(null);
+		setLogoFetching(null);
 	}, [service.id]);
 
-	// Color suggestions
+	// Load logo + extract colors
 	useEffect(() => {
+		if (!proxiedLogo) { setLogoOk(false); setLogoBlobUrl(undefined); return; }
 		let cancelled = false;
 		(async () => {
 			try {
-				const res = await fetch(proxiedLogo);
-				if (!res.ok) return;
-				const blob = await res.blob();
-				const url = URL.createObjectURL(blob);
+				const blobUrl = await getCachedImage(proxiedLogo);
+				if (cancelled) return;
+				setLogoBlobUrl(blobUrl);
 				const img = new Image();
 				img.onload = () => {
 					if (!cancelled) {
 						setSuggestions(extractColors(img));
 						setLogoOk(true);
 					}
-					URL.revokeObjectURL(url);
 				};
-				img.onerror = () => {
-					setSuggestions([]);
-					URL.revokeObjectURL(url);
-				};
-				img.src = url;
+				img.onerror = () => { if (!cancelled) { setLogoOk(false); setSuggestions([]); } };
+				img.src = blobUrl;
 			} catch {
-				if (!cancelled) setSuggestions([]);
+				if (!cancelled) { setLogoOk(false); setLogoBlobUrl(undefined); setSuggestions([]); }
 			}
 		})();
-		return () => {
-			cancelled = true;
-		};
+		return () => { cancelled = true; };
 	}, [proxiedLogo]);
 
 	// Sampler canvas
@@ -325,7 +338,7 @@ const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
 			onUpdate({ ...service, verified: next });
 		} catch (e) {
 			setVerified(!next);
-			alert(e instanceof Error ? e.message : 'Failed to update verification');
+			toast.error(e instanceof Error ? e.message : 'Failed to update verification');
 		}
 	};
 
@@ -334,21 +347,23 @@ const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
 		prevIdRef.current = service.id;
 	}, [service.id]);
 
-	const hasChanges =
-		prevIdRef.current === service.id &&
-		(name !== service.name ||
-			slug !== service.slug ||
-			JSON.stringify(domains) !== JSON.stringify(service.domains) ||
-			categoryId !== (service.category?.id ?? '') ||
-			color !== service.colors.primary ||
-			refLink !== (service.ref_link ?? ''));
+	const hasChanges = isCreateMode
+		? !!(name.trim() && slug.trim())
+		: prevIdRef.current === service.id &&
+			(name !== service.name ||
+				slug !== service.slug ||
+				JSON.stringify(domains) !== JSON.stringify(service.domains) ||
+				categoryId !== (service.category?.id ?? '') ||
+				color !== service.colors.primary ||
+				refLink !== (service.ref_link ?? ''));
 
 	// Cmd+Enter / Ctrl+Enter to save
 	useHotkey('Mod+Enter', () => { if (hasChanges && !saving) handleSave(); });
 
 	const resetForm = () => {
 		setName(service.name);
-		setSlug(service.slug);
+		setSlug(prefillSlug || service.slug);
+		setCommittedSlug(prefillSlug || service.slug);
 		setDomains(service.domains);
 		setDomainInput('');
 		setCategoryId(service.category?.id ?? '');
@@ -360,41 +375,63 @@ const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
 	const handleSave = async () => {
 		setSaving(true);
 		try {
-			const body: Record<string, unknown> = {};
-			if (name !== service.name) body.name = name;
-			if (slug !== service.slug) body.slug = slug;
-			if (JSON.stringify(domains) !== JSON.stringify(service.domains)) body.domains = domains;
-			// verified auto-saves separately via toggleVerified
-			const newCatId = categoryId || null;
-			if (newCatId !== (service.category?.id ?? null)) body.category_id = newCatId;
-			if (color !== service.colors.primary) body.colors = { primary: color };
-			if (refLink !== (service.ref_link ?? '')) body.ref_link = refLink || null;
-			if (Object.keys(body).length === 0) {
-				setSaving(false);
-				return;
+			if (isCreateMode) {
+				if (!name.trim() || !slug.trim()) {
+					toast.error('Name and slug are required');
+					setSaving(false);
+					return;
+				}
+				const res = await fetch(`${API_URL}/services`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						name: name.trim(),
+						slug: slug.trim(),
+						domains,
+						category_id: categoryId || null,
+						colors: { primary: color },
+						ref_link: refLink || null,
+					})
+				});
+				if (!res.ok) throw new Error(`Create failed: ${res.status}`);
+				const created: ServiceT = await res.json();
+				onUpdate(created);
+			} else {
+				const body: Record<string, unknown> = {};
+				if (name !== service.name) body.name = name;
+				if (slug !== service.slug) body.slug = slug;
+				if (JSON.stringify(domains) !== JSON.stringify(service.domains)) body.domains = domains;
+				const newCatId = categoryId || null;
+				if (newCatId !== (service.category?.id ?? null)) body.category_id = newCatId;
+				if (color !== service.colors.primary) body.colors = { primary: color };
+				if (refLink !== (service.ref_link ?? '')) body.ref_link = refLink || null;
+				if (Object.keys(body).length === 0) {
+					setSaving(false);
+					return;
+				}
+
+				const res = await fetch(`${API_URL}/services/${service.id}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body)
+				});
+				if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+
+				const cat = categories.find((c) => c.id === categoryId) ?? null;
+				onUpdate({
+					...service,
+					name,
+					slug,
+					domains,
+					verified,
+					category: cat ? { id: cat.id, title: cat.title } : null,
+					colors: { primary: color },
+					ref_link: refLink || null,
+					logo_url: service.logo_url.replace(/\/[^/]+\.webp$/, `/${slug}.webp`)
+				});
 			}
-
-			const res = await fetch(`${API_URL}/services/${service.id}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body)
-			});
-			if (!res.ok) throw new Error(`Save failed: ${res.status}`);
-
-			const cat = categories.find((c) => c.id === categoryId) ?? null;
-			onUpdate({
-				...service,
-				name,
-				slug,
-				domains,
-				verified,
-				category: cat ? { id: cat.id, title: cat.title } : null,
-				colors: { primary: color },
-				ref_link: refLink || null,
-				logo_url: service.logo_url.replace(/\/[^/]+\.webp$/, `/${slug}.webp`)
-			});
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Save failed');
+			toast.error(e instanceof Error ? e.message : (isCreateMode ? 'Create failed' : 'Save failed'));
 		} finally {
 			setSaving(false);
 		}
@@ -409,7 +446,7 @@ const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
 					<Squircle
 						size={52}
 						color={`${contrastText(color)}20`}
-						src={logoOk ? proxiedLogo : undefined}
+						src={logoOk ? logoBlobUrl : undefined}
 						fallback={!logoOk ? (name || service.name).charAt(0).toUpperCase() : undefined}
 						onClick={() => setPreviewOpen(true)}
 						style={{ color: contrastText(color) }}
@@ -450,12 +487,132 @@ const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
 				{/* ── Service Identity ── */}
 				<Section title="Service Identity">
 					<Label text="Service Name">
-						<input value={name} onChange={(e) => setName(e.target.value)} className="ed-input" />
+						<input
+							value={name}
+							onChange={(e) => setName(e.target.value)}
+							className="ed-input"
+						/>
 					</Label>
 					<Label text="Slug">
-						<input value={slug} onChange={(e) => setSlug(e.target.value)} className="ed-input font-mono" />
+						<input
+							value={slug}
+							onChange={(e) => setSlug(e.target.value)}
+							onBlur={() => setCommittedSlug(slug)}
+							onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setCommittedSlug(slug); (e.target as HTMLInputElement).blur(); } }}
+							className="ed-input font-mono"
+						/>
 					</Label>
 				</Section>
+
+				{/* ── Logo Fetch ── */}
+				{slug && domains.length > 0 && (
+					<Section title="Logo">
+						{logoFetch ? (
+							<div className="space-y-3">
+								<div className="rounded-xl border border-border overflow-hidden bg-muted/30 flex items-center justify-center p-4">
+									<img
+										src={logoFetch.url}
+										alt="Logo preview"
+										className="max-w-[120px] max-h-[120px] object-contain"
+										onError={() => { toast.error('Failed to load preview'); setLogoFetch(null); }}
+									/>
+								</div>
+								<div className="flex items-center justify-center gap-3 text-[10px] text-muted-fg">
+									<span>{logoFetch.width}x{logoFetch.height}</span>
+									<span className="opacity-30">·</span>
+									<span>{logoFetch.size < 1024 ? `${logoFetch.size} B` : `${(logoFetch.size / 1024).toFixed(1)} KB`}</span>
+									<span className="opacity-30">·</span>
+									<span className="uppercase">{logoFetch.format}</span>
+									<span className="opacity-30">·</span>
+									<span>{logoFetch.source}</span>
+								</div>
+								<div className="flex gap-2">
+									<button
+										type="button"
+										disabled={logoSaving}
+										onClick={async () => {
+											setLogoSaving(true);
+											try {
+												const res = await fetch(`${API_URL}/logos/save`, {
+													method: 'POST',
+													headers: { 'Content-Type': 'application/json' },
+													body: JSON.stringify({ domain: domains[0], slug, source: logoFetch.source })
+												});
+												if (!res.ok) {
+													const err = await res.text();
+													throw new Error(err || `${res.status}`);
+												}
+												const result = await res.json();
+												toast.success(`Logo saved to ${result.saved}`);
+												setLogoFetch(null);
+												if (proxiedLogo) {
+													const newBlobUrl = await refetchImage(proxiedLogo);
+													setLogoBlobUrl(newBlobUrl);
+													setLogoOk(true);
+												}
+											} catch (e) {
+												toast.error(e instanceof Error ? e.message : 'Save failed');
+											} finally {
+												setLogoSaving(false);
+											}
+										}}
+										className="flex-1 rounded-lg bg-success py-2 text-xs font-bold text-white hover:opacity-90 transition-colors cursor-pointer disabled:opacity-50"
+									>
+										{logoSaving ? 'Saving...' : 'Approve & Save'}
+									</button>
+									<button
+										type="button"
+										onClick={() => setLogoFetch(null)}
+										className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
+									>
+										Reject
+									</button>
+								</div>
+							</div>
+						) : (
+							<div className="flex gap-2">
+								{(['brandfetch', 'logodev'] as const).map((src) => (
+									<button
+										key={src}
+										type="button"
+										disabled={logoFetching !== null}
+										onClick={async () => {
+											setLogoFetching(src);
+											try {
+												const res = await fetch(`${API_URL}/logos/fetch`, {
+													method: 'POST',
+													headers: { 'Content-Type': 'application/json' },
+													body: JSON.stringify({ domain: domains[0], slug, source: src })
+												});
+												if (!res.ok) throw new Error(`${res.status}`);
+												const data = await res.json();
+												// Probe image for dimensions and size
+												const imgRes = await fetch(data.url);
+												if (!imgRes.ok) throw new Error('Image not found');
+												const blob = await imgRes.blob();
+												const format = blob.type.split('/').pop() ?? 'unknown';
+												const dims = await new Promise<{ w: number; h: number }>((resolve) => {
+													const img = new Image();
+													img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+													img.onerror = () => resolve({ w: 0, h: 0 });
+													img.src = URL.createObjectURL(blob);
+												});
+												setLogoFetch({ url: data.url, source: src, size: blob.size, width: dims.w, height: dims.h, format });
+											} catch (e) {
+												toast.error(e instanceof Error ? e.message : 'Fetch failed');
+											} finally {
+												setLogoFetching(null);
+											}
+										}}
+										className="flex-1 rounded-lg border border-border py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50"
+									>
+										{logoFetching === src ? 'Loading...' : src === 'logodev' ? 'logo.dev' : 'Brandfetch'}
+									</button>
+								))}
+							</div>
+						)}
+					</Section>
+				)}
 
 				{/* ── Associated Domains ── */}
 				<Section
@@ -551,7 +708,7 @@ const ServiceEditor = ({ service, categories, onClose, onUpdate }: Props) => {
 						disabled={saving}
 						className="flex-1 rounded-xl bg-accent py-3 text-sm font-bold text-white hover:opacity-90 transition-colors cursor-pointer disabled:opacity-50"
 					>
-						{saving ? 'Saving...' : 'Save Changes'}
+						{saving ? (isCreateMode ? 'Creating...' : 'Saving...') : (isCreateMode ? 'Create Service' : 'Save Changes')}
 					</button>
 					<button
 						type="button"

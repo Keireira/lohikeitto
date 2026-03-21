@@ -8,15 +8,11 @@ import DirPicker from '@/components/dir-picker';
 import type { MenuItem } from '@/components/context-menu';
 import useGlobalDownload from '@/lib/use-download';
 import { s3ArchiveUrl, s3FileUrl } from '@/lib/api';
-import type { S3ObjectT } from '@/lib/types';
+import type { S3ObjectT, ServiceT } from '@/lib/types';
+import { toast } from '@/lib/toast';
+import formatSize from '@/lib/format-size';
 
 // ── Utils ──────────────────────────────────────────
-
-const formatSize = (bytes: number): string => {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -33,28 +29,6 @@ const formatDate = (iso: string | null): string => {
 const IMAGE_EXTS = new Set(['webp', 'png', 'jpg', 'jpeg', 'svg', 'gif', 'ico']);
 const isImage = (name: string): boolean => IMAGE_EXTS.has(name.split('.').pop()?.toLowerCase() ?? '');
 
-const EXT_COLORS: Record<string, string> = {
-	svg: '#10b981', webp: '#f472b6', png: '#f472b6', jpg: '#f472b6', jpeg: '#f472b6', gif: '#f472b6', ico: '#f472b6',
-	pdf: '#10b981', doc: '#3b82f6', docx: '#3b82f6', txt: '#6b7280',
-	mp4: '#f97316', mkv: '#f97316', avi: '#f97316', mov: '#f97316', webm: '#f97316',
-	mp3: '#8b5cf6', wav: '#8b5cf6', flac: '#8b5cf6',
-	zip: '#eab308', tar: '#eab308', gz: '#eab308', rar: '#eab308',
-	json: '#06b6d4', xml: '#06b6d4', csv: '#06b6d4', yml: '#06b6d4', yaml: '#06b6d4',
-};
-
-const FileIcon = ({ name, isDir }: { name: string; isDir: boolean }) => {
-	if (isDir) return (
-		<div className="size-9 rounded-xl bg-accent/10 flex items-center justify-center text-accent text-sm shrink-0">📁</div>
-	);
-	const ext = name.split('.').pop()?.toLowerCase() ?? '';
-	const color = EXT_COLORS[ext] ?? '#6b7280';
-	return (
-		<div className="size-9 rounded-xl flex items-center justify-center text-[10px] font-bold uppercase shrink-0" style={{ backgroundColor: `${color}15`, color }}>
-			{ext.slice(0, 4)}
-		</div>
-	);
-};
-
 const API_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
 
 // ── Image cache — IndexedDB for persistence across reloads ──
@@ -62,12 +36,13 @@ const API_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337'
 const DB_NAME = 's3-thumb-cache';
 const STORE_NAME = 'blobs';
 
-const openCacheDb = (): Promise<IDBDatabase> => new Promise((resolve, reject) => {
-	const req = indexedDB.open(DB_NAME, 1);
-	req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
-	req.onsuccess = () => resolve(req.result);
-	req.onerror = () => reject(req.error);
-});
+const openCacheDb = (): Promise<IDBDatabase> =>
+	new Promise((resolve, reject) => {
+		const req = indexedDB.open(DB_NAME, 1);
+		req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
 
 const blobUrlCache = new Map<string, string>();
 
@@ -123,7 +98,9 @@ const clearImageCache = async () => {
 		const db = await openCacheDb();
 		const tx = db.transaction(STORE_NAME, 'readwrite');
 		tx.objectStore(STORE_NAME).clear();
-	} catch { /* */ }
+	} catch {
+		/* */
+	}
 };
 
 // ── Types ──────────────────────────────────────────
@@ -165,8 +142,13 @@ const useDirectory = (objects: S3ObjectT[], currentPath: string, search: string,
 			}
 		}
 
-		const dirEntries: Entry[] = [...dirs.entries()]
-			.map(([name, size]) => ({ name, isDir: true, size, fullKey: `${currentPath}${name}/`, lastModified: null }));
+		const dirEntries: Entry[] = [...dirs.entries()].map(([name, size]) => ({
+			name,
+			isDir: true,
+			size,
+			fullKey: `${currentPath}${name}/`,
+			lastModified: null
+		}));
 
 		let all = [...dirEntries, ...files];
 
@@ -182,7 +164,13 @@ const useDirectory = (objects: S3ObjectT[], currentPath: string, search: string,
 				if (!relative.includes('/')) continue; // already in `files`
 				const filename = relative.split('/').pop() ?? '';
 				if (filename.toLowerCase().includes(q)) {
-					deepMatches.push({ name: relative, isDir: false, size: obj.size, fullKey: obj.key, lastModified: obj.last_modified });
+					deepMatches.push({
+						name: relative,
+						isDir: false,
+						size: obj.size,
+						fullKey: obj.key,
+						lastModified: obj.last_modified
+					});
 				}
 			}
 			all = [...all.filter((e) => e.name.toLowerCase().includes(q)), ...deepMatches];
@@ -215,37 +203,40 @@ const useSelection = (entries: Entry[]) => {
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const lastClickRef = useRef<number | null>(null);
 
-	const toggle = useCallback((idx: number, e: React.MouseEvent, fromCheckbox = false) => {
-		const key = entries[idx].fullKey;
+	const toggle = useCallback(
+		(idx: number, e: React.MouseEvent, fromCheckbox = false) => {
+			const key = entries[idx].fullKey;
 
-		if (e.shiftKey && lastClickRef.current !== null) {
-			// Range select
-			const from = Math.min(lastClickRef.current, idx);
-			const to = Math.max(lastClickRef.current, idx);
-			setSelected((prev) => {
-				const next = new Set(prev);
-				for (let i = from; i <= to; i++) {
-					next.add(entries[i].fullKey);
-				}
-				return next;
-			});
-		} else if (fromCheckbox || e.metaKey || e.ctrlKey) {
-			// Additive toggle
-			setSelected((prev) => {
-				const next = new Set(prev);
-				if (next.has(key)) {
-					next.delete(key);
-				} else {
-					next.add(key);
-				}
-				return next;
-			});
-		} else {
-			// Single select
-			setSelected(new Set([key]));
-		}
-		lastClickRef.current = idx;
-	}, [entries]);
+			if (e.shiftKey && lastClickRef.current !== null) {
+				// Range select
+				const from = Math.min(lastClickRef.current, idx);
+				const to = Math.max(lastClickRef.current, idx);
+				setSelected((prev) => {
+					const next = new Set(prev);
+					for (let i = from; i <= to; i++) {
+						next.add(entries[i].fullKey);
+					}
+					return next;
+				});
+			} else if (fromCheckbox || e.metaKey || e.ctrlKey) {
+				// Additive toggle
+				setSelected((prev) => {
+					const next = new Set(prev);
+					if (next.has(key)) {
+						next.delete(key);
+					} else {
+						next.add(key);
+					}
+					return next;
+				});
+			} else {
+				// Single select
+				setSelected(new Set([key]));
+			}
+			lastClickRef.current = idx;
+		},
+		[entries]
+	);
 
 	const selectAll = useCallback(() => {
 		setSelected(new Set(entries.map((e) => e.fullKey)));
@@ -262,7 +253,9 @@ const useSelection = (entries: Entry[]) => {
 	// Esc to clear selection
 	useEffect(() => {
 		if (selected.size === 0) return;
-		const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') clear(); };
+		const handler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') clear();
+		};
 		window.addEventListener('keydown', handler);
 		return () => window.removeEventListener('keydown', handler);
 	}, [selected.size, clear]);
@@ -276,8 +269,14 @@ const Thumbnail = ({ fileKey }: { fileKey: string }) => {
 	const [url, setUrl] = useState<string | null>(null);
 	useEffect(() => {
 		let cancelled = false;
-		getCachedImageUrl(fileKey).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
-		return () => { cancelled = true; };
+		getCachedImageUrl(fileKey)
+			.then((u) => {
+				if (!cancelled) setUrl(u);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
 	}, [fileKey]);
 	if (!url) return <div className="size-10 rounded-lg bg-muted shrink-0" />;
 	return <img src={url} alt="" className="size-10 rounded-lg object-cover bg-muted shrink-0" />;
@@ -327,7 +326,9 @@ const ImagePreview = ({
 	const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 	const ext = data.name.split('.').pop()?.toUpperCase() ?? '';
 
-	useEffect(() => { setDims(null); }, [data.src]);
+	useEffect(() => {
+		setDims(null);
+	}, [data.src]);
 
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
@@ -341,20 +342,48 @@ const ImagePreview = ({
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-			<div className="relative max-w-3xl max-h-[85vh] rounded-lg overflow-hidden bg-background border border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
+			<div
+				className="relative max-w-3xl max-h-[85vh] rounded-lg overflow-hidden bg-background border border-border shadow-2xl"
+				onClick={(e) => e.stopPropagation()}
+			>
 				<div className="flex items-center justify-between px-4 py-2 border-b border-border">
 					<div className="flex items-center gap-3">
-						{onPrev && <button type="button" onClick={onPrev} className="text-muted-fg hover:text-foreground text-sm">{'↑'}</button>}
-						{onNext && <button type="button" onClick={onNext} className="text-muted-fg hover:text-foreground text-sm">{'↓'}</button>}
+						{onPrev && (
+							<button type="button" onClick={onPrev} className="text-muted-fg hover:text-foreground text-sm">
+								{'↑'}
+							</button>
+						)}
+						{onNext && (
+							<button type="button" onClick={onNext} className="text-muted-fg hover:text-foreground text-sm">
+								{'↓'}
+							</button>
+						)}
 						<span className="text-sm font-mono text-muted-fg">{data.name}</span>
 					</div>
 					<div className="flex items-center gap-2">
-						<button type="button" onClick={onDownload} className="rounded border border-border px-2 py-0.5 text-xs text-muted-fg hover:text-foreground hover:bg-muted transition-colors">{'↓'}</button>
-						<button type="button" onClick={onDelete} className="rounded border border-red-400/30 px-2 py-0.5 text-xs text-red-400 hover:bg-red-400/10 transition-colors">{'🗑'}</button>
-						<button type="button" onClick={onClose} className="text-muted-fg hover:text-foreground text-sm ml-2">{'esc'}</button>
+						<button
+							type="button"
+							onClick={onDownload}
+							className="rounded border border-border px-2 py-0.5 text-xs text-muted-fg hover:text-foreground hover:bg-muted transition-colors"
+						>
+							{'↓'}
+						</button>
+						<button
+							type="button"
+							onClick={onDelete}
+							className="rounded border border-red-400/30 px-2 py-0.5 text-xs text-red-400 hover:bg-red-400/10 transition-colors"
+						>
+							{'🗑'}
+						</button>
+						<button type="button" onClick={onClose} className="text-muted-fg hover:text-foreground text-sm ml-2">
+							{'esc'}
+						</button>
 					</div>
 				</div>
-				<div className="p-4 flex items-center justify-center" style={{ background: 'repeating-conic-gradient(#80808015 0% 25%, transparent 0% 50%) 50% / 16px 16px' }}>
+				<div
+					className="p-4 flex items-center justify-center"
+					style={{ background: 'repeating-conic-gradient(#80808015 0% 25%, transparent 0% 50%) 50% / 16px 16px' }}
+				>
 					<img
 						src={data.src}
 						alt={data.name}
@@ -365,7 +394,11 @@ const ImagePreview = ({
 				<div className="flex flex-wrap gap-x-6 gap-y-1 px-4 py-3 border-t border-border text-xs text-muted-fg font-mono">
 					<span>{ext}</span>
 					<span>{formatSize(data.size)}</span>
-					{dims && <span>{dims.w} x {dims.h}</span>}
+					{dims && (
+						<span>
+							{dims.w} x {dims.h}
+						</span>
+					)}
 					<span>{formatDate(data.lastModified)}</span>
 				</div>
 			</div>
@@ -375,7 +408,7 @@ const ImagePreview = ({
 
 // ── Main component ─────────────────────────────────
 
-const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
+const S3Browser = ({ data: initialData, services }: { data: S3ObjectT[]; services: ServiceT[] }) => {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [data, setData] = useState(initialData);
@@ -414,25 +447,59 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 	const selectedEntries = useMemo(() => entries.filter((e) => selected.has(e.fullKey)), [entries, selected]);
 	const selectedSize = useMemo(() => selectedEntries.reduce((a, e) => a + e.size, 0), [selectedEntries]);
 
+	// Logo ↔ Service linking
+	const isLogosDir = currentPath === 'logos/';
+	const slugToService = useMemo(() => {
+		const map = new Map<string, ServiceT>();
+		for (const s of services) map.set(s.slug, s);
+		return map;
+	}, [services]);
+	const unlinkedLogos = useMemo(() => {
+		if (!isLogosDir) return [];
+		return entries.filter((e) => !e.isDir && !slugToService.has(e.name.replace(/\.[^.]+$/, '')));
+	}, [isLogosDir, entries, slugToService]);
+
 	// Image preview navigation
 	const imageEntries = useMemo(
 		() => entries.map((e, i) => ({ entry: e, idx: i })).filter(({ entry }) => !entry.isDir && isImage(entry.name)),
 		[entries]
 	);
 	const currentImagePos = previewIdx !== null ? imageEntries.findIndex(({ idx }) => idx === previewIdx) : -1;
-	const previewData: PreviewData | null = previewIdx !== null && entries[previewIdx]
-		? { src: s3FileUrl(entries[previewIdx].fullKey), name: entries[previewIdx].name, size: entries[previewIdx].size, lastModified: entries[previewIdx].lastModified }
-		: null;
-	const goPrevImage = useCallback(() => { if (currentImagePos > 0) setPreviewIdx(imageEntries[currentImagePos - 1].idx); }, [currentImagePos, imageEntries]);
-	const goNextImage = useCallback(() => { if (currentImagePos < imageEntries.length - 1) setPreviewIdx(imageEntries[currentImagePos + 1].idx); }, [currentImagePos, imageEntries]);
+	const previewData: PreviewData | null =
+		previewIdx !== null && entries[previewIdx]
+			? {
+					src: s3FileUrl(entries[previewIdx].fullKey),
+					name: entries[previewIdx].name,
+					size: entries[previewIdx].size,
+					lastModified: entries[previewIdx].lastModified
+				}
+			: null;
+	const goPrevImage = useCallback(() => {
+		if (currentImagePos > 0) setPreviewIdx(imageEntries[currentImagePos - 1].idx);
+	}, [currentImagePos, imageEntries]);
+	const goNextImage = useCallback(() => {
+		if (currentImagePos < imageEntries.length - 1) setPreviewIdx(imageEntries[currentImagePos + 1].idx);
+	}, [currentImagePos, imageEntries]);
 
 	const totalFiles = data.filter((o) => !o.key.endsWith('/') && o.size > 0).length;
 	const totalBytes = data.reduce((a, o) => a + o.size, 0);
 
-	const clearSearch = () => { setSearchInput(''); setSearch(''); };
-	const openDir = (name: string) => { setPath((p) => [...p, name]); clearSearch(); };
-	const goUp = () => { setPath((p) => p.slice(0, -1)); clearSearch(); };
-	const goTo = (idx: number) => { setPath((p) => p.slice(0, idx + 1)); clearSearch(); };
+	const clearSearch = () => {
+		setSearchInput('');
+		setSearch('');
+	};
+	const openDir = (name: string) => {
+		setPath((p) => [...p, name]);
+		clearSearch();
+	};
+	const goUp = () => {
+		setPath((p) => p.slice(0, -1));
+		clearSearch();
+	};
+	const goTo = (idx: number) => {
+		setPath((p) => p.slice(0, idx + 1));
+		clearSearch();
+	};
 
 	const toggleSort = (key: SortKey) => {
 		if (sortKey === key) {
@@ -469,7 +536,7 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 			setData((prev) => prev.filter((o) => !keys.includes(o.key)));
 			clear();
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Delete failed');
+			toast.error(e instanceof Error ? e.message : 'Delete failed');
 		} finally {
 			setDeleting(false);
 		}
@@ -521,7 +588,7 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 			if (listRes.ok) setData(await listRes.json());
 			clear();
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Operation failed');
+			toast.error(e instanceof Error ? e.message : 'Operation failed');
 		}
 	};
 
@@ -539,7 +606,7 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 			const result = await res.json();
 			setData((prev) => [...prev, { key: result.created, size: 0, last_modified: null }]);
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Create directory failed');
+			toast.error(e instanceof Error ? e.message : 'Create directory failed');
 		}
 	};
 
@@ -581,7 +648,7 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 		}
 
 		setUploading(null);
-		if (failed.length > 0) alert(`Failed to upload: ${failed.join(', ')}`);
+		if (failed.length > 0) toast.error(`Failed to upload: ${failed.join(', ')}`);
 	};
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -594,7 +661,9 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 		const items: MenuItem[] = [];
 
 		if (entry) {
-			const selectIfNeeded = () => { if (!hasSelection) toggle(entryIdx!, { metaKey: false, ctrlKey: false, shiftKey: false } as React.MouseEvent); };
+			const selectIfNeeded = () => {
+				if (!hasSelection) toggle(entryIdx!, { metaKey: false, ctrlKey: false, shiftKey: false } as React.MouseEvent);
+			};
 
 			if (entry.isDir) {
 				items.push({ label: 'Open', icon: '📁', onClick: () => openDir(entry.name) });
@@ -604,12 +673,27 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 				{
 					label: entry.isDir ? 'Download as zip' : 'Download',
 					icon: '↓',
-					onClick: () => entry.isDir
-						? dlStart(s3ArchiveUrl(entry.fullKey), `${entry.name}.zip`)
-						: dlStartFile(s3FileUrl(entry.fullKey), entry.name)
+					onClick: () =>
+						entry.isDir
+							? dlStart(s3ArchiveUrl(entry.fullKey), `${entry.name}.zip`)
+							: dlStartFile(s3FileUrl(entry.fullKey), entry.name)
 				},
-				{ label: 'Copy to...', icon: '📋', onClick: () => { selectIfNeeded(); openCopyMove('copy'); } },
-				{ label: 'Move to...', icon: '📦', onClick: () => { selectIfNeeded(); openCopyMove('move'); } }
+				{
+					label: 'Copy to...',
+					icon: '📋',
+					onClick: () => {
+						selectIfNeeded();
+						openCopyMove('copy');
+					}
+				},
+				{
+					label: 'Move to...',
+					icon: '📦',
+					onClick: () => {
+						selectIfNeeded();
+						openCopyMove('move');
+					}
+				}
 			);
 
 			if (!entry.isDir && isImage(entry.name)) {
@@ -618,17 +702,28 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 
 			items.push(
 				{ label: '', icon: '', separator: true, onClick: () => {} },
-				{ label: 'Delete', icon: '🗑', danger: true, onClick: async () => {
-					if (!window.confirm(`Delete ${entry.name}${entry.isDir ? '/ and all contents' : ''}?`)) return;
-					const keysToDelete = entry.isDir
-						? data.filter((o) => o.key.startsWith(entry.fullKey)).map((o) => o.key)
-						: [entry.fullKey];
-					try {
-						const res = await fetch(`${API_URL}/s3/delete`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(keysToDelete) });
-						if (!res.ok) throw new Error('Delete failed');
-						setData((prev) => prev.filter((o) => !keysToDelete.includes(o.key)));
-					} catch (e) { alert(e instanceof Error ? e.message : 'Delete failed'); }
-				}}
+				{
+					label: 'Delete',
+					icon: '🗑',
+					danger: true,
+					onClick: async () => {
+						if (!window.confirm(`Delete ${entry.name}${entry.isDir ? '/ and all contents' : ''}?`)) return;
+						const keysToDelete = entry.isDir
+							? data.filter((o) => o.key.startsWith(entry.fullKey)).map((o) => o.key)
+							: [entry.fullKey];
+						try {
+							const res = await fetch(`${API_URL}/s3/delete`, {
+								method: 'DELETE',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify(keysToDelete)
+							});
+							if (!res.ok) throw new Error('Delete failed');
+							setData((prev) => prev.filter((o) => !keysToDelete.includes(o.key)));
+						} catch (e) {
+							toast.error(e instanceof Error ? e.message : 'Delete failed');
+						}
+					}
+				}
 			);
 		}
 
@@ -672,8 +767,13 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 	return (
 		<div
 			className={`space-y-4 relative ${dragOver ? 'ring-2 ring-accent ring-inset rounded-2xl' : ''}`}
-			onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-			onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+			onDragOver={(e) => {
+				e.preventDefault();
+				setDragOver(true);
+			}}
+			onDragLeave={(e) => {
+				if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);
+			}}
 			onDrop={handleDrop}
 		>
 			{dragOver && (
@@ -684,9 +784,14 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 			{uploading && (
 				<div className="flex items-center gap-3 rounded-xl bg-accent/5 border border-accent/20 px-4 py-3">
 					<div className="flex-1 h-1.5 rounded-full bg-accent/20 overflow-hidden">
-						<div className="h-full bg-accent rounded-full transition-all" style={{ width: `${(uploading.done / uploading.total) * 100}%` }} />
+						<div
+							className="h-full bg-accent rounded-full transition-all"
+							style={{ width: `${(uploading.done / uploading.total) * 100}%` }}
+						/>
 					</div>
-					<span className="text-xs text-accent font-medium whitespace-nowrap">{uploading.done}/{uploading.total} uploaded</span>
+					<span className="text-xs text-accent font-medium whitespace-nowrap">
+						{uploading.done}/{uploading.total} uploaded
+					</span>
 				</div>
 			)}
 			{/* Toolbar — sticky */}
@@ -694,14 +799,36 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-3">
 						{path.length > 0 && (
-							<button type="button" onClick={goUp} className="rounded-lg border border-border size-7 flex items-center justify-center text-xs text-muted-fg hover:text-foreground hover:bg-muted transition-colors cursor-pointer" title="Go back">{'←'}</button>
+							<button
+								type="button"
+								onClick={goUp}
+								className="rounded-lg border border-border size-7 flex items-center justify-center text-xs text-muted-fg hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+								title="Go back"
+							>
+								{'←'}
+							</button>
 						)}
 						<div className="flex items-center gap-0.5 text-sm font-mono">
-							<button type="button" onClick={() => { setPath([]); clearSearch(); }} className="text-muted-fg hover:text-foreground transition-colors">/</button>
+							<button
+								type="button"
+								onClick={() => {
+									setPath([]);
+									clearSearch();
+								}}
+								className="text-muted-fg hover:text-foreground transition-colors"
+							>
+								/
+							</button>
 							{path.map((segment, i) => (
 								<span key={`${segment}-${i}`} className="flex items-center gap-0.5">
 									{i > 0 && <span className="text-muted-fg/30">/</span>}
-									<button type="button" onClick={() => goTo(i)} className={`hover:text-foreground transition-colors ${i === path.length - 1 ? 'text-foreground font-medium' : 'text-muted-fg'}`}>{segment}</button>
+									<button
+										type="button"
+										onClick={() => goTo(i)}
+										className={`hover:text-foreground transition-colors ${i === path.length - 1 ? 'text-foreground font-medium' : 'text-muted-fg'}`}
+									>
+										{segment}
+									</button>
 								</span>
 							))}
 						</div>
@@ -710,33 +837,96 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 								type="text"
 								placeholder="Search..."
 								value={searchInput}
-								onChange={(e) => { setSearchInput(e.target.value); setSearch(e.target.value); }}
+								onChange={(e) => {
+									setSearchInput(e.target.value);
+									setSearch(e.target.value);
+								}}
 								className="rounded-full border border-border bg-surface pl-4 pr-8 py-2 text-sm placeholder:text-muted-fg focus:outline-none focus:ring-2 focus:ring-accent/50 w-56"
 							/>
 							{searchInput && (
-								<button type="button" onClick={clearSearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-fg hover:text-foreground text-xs cursor-pointer">{'✕'}</button>
+								<button
+									type="button"
+									onClick={clearSearch}
+									className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-fg hover:text-foreground text-xs cursor-pointer"
+								>
+									{'✕'}
+								</button>
 							)}
 						</div>
 					</div>
 
 					<div className="flex items-center gap-2">
-						<input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }} />
-						<button type="button" onClick={handleClearCache} title="Refresh thumbnail cache" className="rounded-full border border-border size-8 flex items-center justify-center text-xs text-muted-fg hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
+						<input
+							ref={fileInputRef}
+							type="file"
+							multiple
+							className="hidden"
+							onChange={(e) => {
+								if (e.target.files) handleUpload(e.target.files);
+								e.target.value = '';
+							}}
+						/>
+						<button
+							type="button"
+							onClick={handleClearCache}
+							title="Refresh thumbnail cache"
+							className="rounded-full border border-border size-8 flex items-center justify-center text-xs text-muted-fg hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+						>
 							{'↻'}
 						</button>
-						<button type="button" onClick={handleMkdir} className="rounded-full border border-border px-4 py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer">
+						<button
+							type="button"
+							onClick={handleMkdir}
+							className="rounded-full border border-border px-4 py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
+						>
 							{'📁 New folder'}
 						</button>
-						<button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-full bg-foreground px-4 py-2 text-xs font-bold text-background hover:opacity-90 transition-colors cursor-pointer">
+						<button
+							type="button"
+							onClick={() => fileInputRef.current?.click()}
+							className="rounded-full bg-foreground px-4 py-2 text-xs font-bold text-background hover:opacity-90 transition-colors cursor-pointer"
+						>
 							{'↑ Upload'}
 						</button>
-						<button type="button" onClick={() => dlStart(s3ArchiveUrl(currentPath || undefined), `${path[path.length - 1] ?? 'bucket'}.zip`)} className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-white shadow-sm hover:opacity-90 transition-colors cursor-pointer">
+						<button
+							type="button"
+							onClick={() =>
+								dlStart(s3ArchiveUrl(currentPath || undefined), `${path[path.length - 1] ?? 'bucket'}.zip`)
+							}
+							className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-white shadow-sm hover:opacity-90 transition-colors cursor-pointer"
+						>
 							{`↓ Download ${currentPath ? path[path.length - 1] : 'All'}`}
 						</button>
 					</div>
 				</div>
+			</div>
 
+			{/* Unlinked logos warning */}
+			{isLogosDir && unlinkedLogos.length > 0 && (
+				<div className="flex items-center gap-3 rounded-xl bg-danger/5 border border-danger/20 px-4 py-3">
+					<span className="text-danger text-sm">{'⚠'}</span>
+					<span className="text-xs text-danger font-medium flex-1">
+						{unlinkedLogos.length} logo{unlinkedLogos.length > 1 ? 's' : ''} not linked to any service
+					</span>
+					<div className="flex items-center gap-1.5 flex-wrap">
+						{unlinkedLogos.slice(0, 5).map((e) => {
+							const slug = e.name.replace(/\.[^.]+$/, '');
+							return (
+								<a
+									key={e.fullKey}
+									href={`/?mode=create&slug=${encodeURIComponent(slug)}`}
+									className="rounded-lg bg-danger/10 px-2.5 py-1 text-[11px] font-mono text-danger hover:bg-danger/20 transition-colors"
+								>
+									{slug}
+								</a>
+							);
+						})}
+						{unlinkedLogos.length > 5 && (
+							<span className="text-[11px] text-danger/60">+{unlinkedLogos.length - 5} more</span>
+						)}
+					</div>
 				</div>
+			)}
 
 			{/* Table */}
 			<div
@@ -754,13 +944,21 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 								<input
 									type="checkbox"
 									checked={allSelected}
-									onChange={() => allSelected ? clear() : selectAll()}
+									onChange={() => (allSelected ? clear() : selectAll())}
 									className="cursor-pointer accent-accent"
 								/>
 							</th>
-							<th className="px-4 py-4 font-medium"><SortHeader label="Name" field="name" current={sortKey} dir={sortDir} onSort={toggleSort} /></th>
-							<th className="px-4 py-4 font-medium w-28"><div className="flex justify-end"><SortHeader label="Size" field="size" current={sortKey} dir={sortDir} onSort={toggleSort} /></div></th>
-							<th className="px-4 py-4 font-medium w-48"><SortHeader label="Modified" field="lastModified" current={sortKey} dir={sortDir} onSort={toggleSort} /></th>
+							<th className="px-4 py-4 font-medium">
+								<SortHeader label="Name" field="name" current={sortKey} dir={sortDir} onSort={toggleSort} />
+							</th>
+							<th className="px-4 py-4 font-medium w-28">
+								<div className="flex justify-end">
+									<SortHeader label="Size" field="size" current={sortKey} dir={sortDir} onSort={toggleSort} />
+								</div>
+							</th>
+							<th className="px-4 py-4 font-medium w-48">
+								<SortHeader label="Modified" field="lastModified" current={sortKey} dir={sortDir} onSort={toggleSort} />
+							</th>
 							<th className="py-4 w-12" />
 						</tr>
 					</thead>
@@ -768,8 +966,15 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 						{path.length > 0 && (
 							<tr className="border-b border-border hover:bg-muted/50 transition-colors cursor-pointer" onClick={goUp}>
 								<td />
-								<td className="px-4 py-3"><div className="flex items-center gap-3"><span className="text-lg">📁</span><span className="text-muted-fg">..</span></div></td>
-								<td /><td /><td />
+								<td className="px-4 py-3">
+									<div className="flex items-center gap-3">
+										<span className="text-lg">📁</span>
+										<span className="text-muted-fg">..</span>
+									</div>
+								</td>
+								<td />
+								<td />
+								<td />
 							</tr>
 						)}
 
@@ -777,6 +982,8 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 							const imgFile = !entry.isDir && isImage(entry.name);
 							const isSelected = selected.has(entry.fullKey);
 							const hasSelection = selected.size > 0;
+							const logoSlug = isLogosDir && !entry.isDir ? entry.name.replace(/\.[^.]+$/, '') : null;
+							const linkedService = logoSlug ? slugToService.get(logoSlug) : null;
 
 							return (
 								<tr
@@ -797,18 +1004,50 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 								>
 									<td
 										className="pl-3 pr-1 py-3 w-10"
-										onClick={(e) => { e.stopPropagation(); toggle(entryIdx, e, true); }}
+										onClick={(e) => {
+											e.stopPropagation();
+											toggle(entryIdx, e, true);
+										}}
 									>
 										<div className="flex items-center justify-center size-8 cursor-pointer">
-											<input type="checkbox" checked={isSelected} readOnly className="cursor-pointer accent-accent pointer-events-none" />
+											<input
+												type="checkbox"
+												checked={isSelected}
+												readOnly
+												className="cursor-pointer accent-accent pointer-events-none"
+											/>
 										</div>
 									</td>
 									<td className="px-4 py-3">
 										<div className="flex items-center gap-3">
-											{imgFile ? <Thumbnail fileKey={entry.fullKey} key={`${entry.fullKey}-${cacheKey}`} /> : <span className="text-lg">{entry.isDir ? '📁' : '📄'}</span>}
+											{imgFile ? (
+												<Thumbnail fileKey={entry.fullKey} key={`${entry.fullKey}-${cacheKey}`} />
+											) : (
+												<span className="text-lg">{entry.isDir ? '📁' : '📄'}</span>
+											)}
 											<span className={entry.isDir ? 'font-medium' : 'font-mono text-sm'}>
-												{entry.name}{entry.isDir ? '/' : ''}
+												{entry.name}
+												{entry.isDir ? '/' : ''}
 											</span>
+											{logoSlug && linkedService && (
+												<a
+													href={`/?mode=edit&id=${linkedService.id}`}
+													onClick={(e) => e.stopPropagation()}
+													className="rounded-md bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success hover:bg-success/20 transition-colors"
+													title={linkedService.name}
+												>
+													{linkedService.name}
+												</a>
+											)}
+											{logoSlug && !linkedService && (
+												<a
+													href={`/?mode=create&slug=${encodeURIComponent(logoSlug)}`}
+													onClick={(e) => e.stopPropagation()}
+													className="rounded-md bg-danger/10 px-2 py-0.5 text-[10px] font-medium text-danger hover:bg-danger/20 transition-colors"
+												>
+													unlinked
+												</a>
+											)}
 										</div>
 									</td>
 									<td className="px-4 py-3 text-right text-muted-fg font-mono text-sm">{formatSize(entry.size)}</td>
@@ -818,7 +1057,11 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 											type="button"
 											onClick={(e) => {
 												e.stopPropagation();
-												setCtxMenu({ x: e.currentTarget.getBoundingClientRect().right, y: e.currentTarget.getBoundingClientRect().bottom, entryIdx });
+												setCtxMenu({
+													x: e.currentTarget.getBoundingClientRect().right,
+													y: e.currentTarget.getBoundingClientRect().bottom,
+													entryIdx
+												});
 											}}
 											className="rounded-lg size-7 flex items-center justify-center text-sm text-muted-fg hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
 										>
@@ -830,7 +1073,11 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 						})}
 
 						{entries.length === 0 && (
-							<tr><td colSpan={5} className="px-4 py-12 text-center text-muted-fg">{search ? 'No matches' : 'Empty directory'}</td></tr>
+							<tr>
+								<td colSpan={5} className="px-4 py-12 text-center text-muted-fg">
+									{search ? 'No matches' : 'Empty directory'}
+								</td>
+							</tr>
 						)}
 					</tbody>
 				</table>
@@ -863,7 +1110,7 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 								setPreviewIdx(null);
 							}
 						} catch (e) {
-							alert(e instanceof Error ? e.message : 'Delete failed');
+							toast.error(e instanceof Error ? e.message : 'Delete failed');
 						}
 					}}
 				/>
@@ -877,12 +1124,44 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 						<span className="text-muted-fg ml-1">({formatSize(selectedSize)})</span>
 					</span>
 					<div className="h-4 w-px bg-border" />
-					<button type="button" onClick={handleDownloadSelected} className="rounded-full bg-accent px-3.5 py-1.5 text-xs font-bold text-white hover:opacity-90 transition-colors cursor-pointer">Download</button>
-					<button type="button" onClick={() => openCopyMove('copy')} className="rounded-full border border-border px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer">Copy</button>
-					<button type="button" onClick={() => openCopyMove('move')} className="rounded-full border border-border px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer">Move</button>
-					<button type="button" onClick={handleDelete} disabled={deleting} className="rounded-full bg-danger/10 px-3.5 py-1.5 text-xs font-bold text-danger hover:bg-danger/20 transition-colors cursor-pointer disabled:opacity-50">{deleting ? '...' : 'Delete'}</button>
+					<button
+						type="button"
+						onClick={handleDownloadSelected}
+						className="rounded-full bg-accent px-3.5 py-1.5 text-xs font-bold text-white hover:opacity-90 transition-colors cursor-pointer"
+					>
+						Download
+					</button>
+					<button
+						type="button"
+						onClick={() => openCopyMove('copy')}
+						className="rounded-full border border-border px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
+					>
+						Copy
+					</button>
+					<button
+						type="button"
+						onClick={() => openCopyMove('move')}
+						className="rounded-full border border-border px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
+					>
+						Move
+					</button>
+					<button
+						type="button"
+						onClick={handleDelete}
+						disabled={deleting}
+						className="rounded-full bg-danger/10 px-3.5 py-1.5 text-xs font-bold text-danger hover:bg-danger/20 transition-colors cursor-pointer disabled:opacity-50"
+					>
+						{deleting ? '...' : 'Delete'}
+					</button>
 					<div className="h-4 w-px bg-border" />
-					<button type="button" onClick={clear} className="text-xs text-muted-fg hover:text-foreground cursor-pointer" title="Esc to clear">{'✕'}</button>
+					<button
+						type="button"
+						onClick={clear}
+						className="text-xs text-muted-fg hover:text-foreground cursor-pointer"
+						title="Esc to clear"
+					>
+						{'✕'}
+					</button>
 				</div>
 			)}
 
@@ -903,7 +1182,6 @@ const S3Browser = ({ data: initialData }: { data: S3ObjectT[] }) => {
 					onClose={() => setCopyMoveMode(null)}
 				/>
 			)}
-
 		</div>
 	);
 };

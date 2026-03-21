@@ -18,49 +18,13 @@ import { useDebouncedState } from '@tanstack/react-pacer';
 import CheckboxSelect from '@/components/checkbox-select';
 import Pagination, { QuickNav } from '@/components/pagination/pagination';
 import ServiceEditor from '@/components/service-detail';
-import Squircle from '@/components/squircle';
+import ServiceIcon from '@/components/service-icon';
 import { contrastText } from '@/lib/color';
-import { getCachedImage } from '@/lib/image-cache';
 import type { CategoryT, ServiceT } from '@/lib/types';
 
 // ── Atoms ──────────────────────────────────────────
 
-const proxyUrl = (url: string): string => {
-	try {
-		return `/proxy-s3${new URL(url).pathname}`;
-	} catch {
-		return url;
-	}
-};
-
-const ServiceIcon = ({ src, name, color }: { src: string; name: string; color: string }) => {
-	const [cachedSrc, setCachedSrc] = useState<string | undefined>(undefined);
-	const proxied = proxyUrl(src);
-
-	useEffect(() => {
-		let cancelled = false;
-		getCachedImage(proxied)
-			.then((u) => {
-				if (!cancelled) setCachedSrc(u);
-			})
-			.catch(() => {
-				if (!cancelled) setCachedSrc(undefined);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [proxied]);
-
-	return (
-		<Squircle
-			size={40}
-			color={color}
-			src={cachedSrc}
-			fallback={!cachedSrc ? name.charAt(0).toUpperCase() : undefined}
-			style={{ color: contrastText(color) }}
-		/>
-	);
-};
+const API = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
 
 const SortHeader = ({
 	label,
@@ -167,7 +131,15 @@ const columns: ColumnDef<ServiceT>[] = [
 
 // ── Table ──────────────────────────────────────────
 
-const ServicesTable = ({ data: initialData, categories }: { data: ServiceT[]; categories: CategoryT[] }) => {
+const ServicesTable = ({
+	data: initialData,
+	categories,
+	s3Logos = []
+}: {
+	data: ServiceT[];
+	categories: CategoryT[];
+	s3Logos?: string[];
+}) => {
 	const searchParams = useSearchParams();
 
 	const [data, setData] = useState(initialData);
@@ -176,7 +148,7 @@ const ServicesTable = ({ data: initialData, categories }: { data: ServiceT[]; ca
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
 	const [selected, setSelected] = useState<ServiceT | null>(() => {
-		const editId = searchParams.get('edit');
+		const editId = searchParams.get('mode') === 'edit' ? searchParams.get('id') : null;
 		return editId ? (initialData.find((s) => s.id === editId) ?? null) : null;
 	});
 	const [showVerified, setShowVerified] = useState(true);
@@ -185,25 +157,38 @@ const ServicesTable = ({ data: initialData, categories }: { data: ServiceT[]; ca
 		pageIndex: Math.max(0, Number(searchParams.get('page') ?? 1) - 1),
 		pageSize: Number(searchParams.get('per_page')) || 50
 	}));
+	const [mode, setMode] = useState<'idle' | 'create' | 'edit'>(() => {
+		const m = searchParams.get('mode');
+		if (m === 'create') return 'create';
+		if (m === 'edit' && searchParams.get('id')) return 'edit';
+		return 'idle';
+	});
+	const prefillSlug = searchParams.get('slug') ?? '';
+	const creating = mode === 'create';
+	const panelOpen = mode !== 'idle';
 	const tableRef = useRef<HTMLDivElement>(null);
 
 	// Sync state → URL (without triggering Next.js navigation)
 	useEffect(() => {
 		const params = new URLSearchParams();
-		if (selected) params.set('edit', selected.id);
+		if (mode === 'edit' && selected) {
+			params.set('mode', 'edit');
+			params.set('id', selected.id);
+		} else if (mode === 'create') {
+			params.set('mode', 'create');
+			if (prefillSlug) params.set('slug', prefillSlug);
+		}
 		if (pagination.pageIndex > 0) params.set('page', String(pagination.pageIndex + 1));
 		if (pagination.pageSize !== 50) params.set('per_page', String(pagination.pageSize));
 		const qs = params.toString();
-		const url = qs ? `/?${qs}` : '/';
-		window.history.replaceState(null, '', url);
-	}, [selected, pagination]);
+		window.history.replaceState(null, '', qs ? `/?${qs}` : '/');
+	}, [selected, pagination, mode, prefillSlug]);
 
 	const visibleData = useMemo(
 		() => (showVerified && showUnverified ? data : data.filter((s) => (s.verified ? showVerified : showUnverified))),
 		[data, showVerified, showUnverified]
 	);
 	const verifiedCount = useMemo(() => data.filter((s) => s.verified).length, [data]);
-
 
 	const categoryNames = useMemo(() => categories.map((c) => c.title).sort(), [categories]);
 	const categoryCounts = useMemo(() => {
@@ -251,6 +236,12 @@ const ServicesTable = ({ data: initialData, categories }: { data: ServiceT[]; ca
 		}
 	});
 
+	// Unlinked logos
+	const unlinkedLogos = useMemo(() => {
+		const slugs = new Set(data.map((s) => s.slug));
+		return s3Logos.filter((slug) => !slugs.has(slug));
+	}, [data, s3Logos]);
+
 	// Derived counts for pagination
 	const filtered = table.getFilteredRowModel().rows.length;
 	const pageCount = Math.ceil(filtered / pagination.pageSize);
@@ -260,37 +251,99 @@ const ServicesTable = ({ data: initialData, categories }: { data: ServiceT[]; ca
 
 	return (
 		<div>
-			{selected && (
-				<div className="fixed top-[72px] left-[64px] bottom-0 w-[400px] z-30 overflow-y-auto overscroll-contain bg-background border-r border-border p-4">
+			{panelOpen && (
+				<div className="fixed top-[72px] left-[64px] bottom-0 w-[400px] z-30 overflow-y-auto overscroll-contain bg-background border-r border-border p-4 pb-16">
 					<ServiceEditor
-						service={selected}
+						service={selected ?? undefined}
 						categories={categories}
-						onClose={() => setSelected(null)}
+						prefillSlug={creating ? prefillSlug : undefined}
+						onClose={() => {
+							setSelected(null);
+							setMode('idle');
+						}}
 						onUpdate={(updated) => {
-							setData((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-							setSelected(updated);
+							if (creating) {
+								setData((prev) => [...prev, updated]);
+								setSelected(updated);
+								setMode('edit');
+							} else {
+								setData((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+								setSelected(updated);
+							}
 						}}
 					/>
 					<button
 						type="button"
-						onClick={() => setSelected(null)}
+						onClick={() => {
+							setSelected(null);
+							setMode('idle');
+						}}
 						className="fixed left-[448px] top-[78px] size-7 rounded-full bg-surface border border-border shadow-md flex items-center justify-center text-xs text-muted-fg hover:text-foreground transition-colors cursor-pointer z-30"
-						title="Close editor"
+						title="Close"
 					>
 						{'✕'}
 					</button>
 				</div>
 			)}
 
-			<div className={`space-y-5 ${selected ? 'ml-[400px]' : ''}`}>
+			{/* Unlinked logos panel — visible in create mode */}
+			{creating && unlinkedLogos.length > 0 && (
+				<div className="fixed top-[72px] left-[464px] bottom-0 w-[240px] z-20 overflow-y-auto bg-background border-r border-border">
+					<div className="px-4 py-3 border-b border-border sticky top-0 bg-background">
+						<p className="text-[11px] font-bold text-muted-fg uppercase tracking-wider">Unlinked Logos</p>
+						<p className="text-[10px] text-muted-fg">{unlinkedLogos.length} without service</p>
+					</div>
+					<div className="py-1">
+						{unlinkedLogos.map((slug) => (
+							<button
+								key={slug}
+								type="button"
+								onClick={() => {
+									setMode('create');
+									window.history.replaceState(null, '', `/?mode=create&slug=${encodeURIComponent(slug)}`);
+									window.location.reload();
+								}}
+								className="w-full text-left px-4 py-2 text-xs font-mono text-foreground hover:bg-muted/50 transition-colors cursor-pointer flex items-center gap-2"
+							>
+								<img
+									src={`${API}/s3/file/logos/${slug}.webp`}
+									alt=""
+									className="size-6 rounded object-cover bg-muted shrink-0"
+									onError={(e) => {
+										(e.target as HTMLImageElement).style.display = 'none';
+									}}
+								/>
+								<span className="truncate">{slug}</span>
+							</button>
+						))}
+					</div>
+				</div>
+			)}
+
+			<div
+				className={`space-y-5 ${creating && unlinkedLogos.length > 0 ? 'ml-[704px]' : panelOpen ? 'ml-[400px]' : ''}`}
+			>
 				{/* Filters */}
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-3">
+						<button
+							type="button"
+							onClick={() => {
+								setSelected(null);
+								setMode('create');
+							}}
+							className="rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-white hover:opacity-90 transition-colors cursor-pointer"
+						>
+							+ Add
+						</button>
 						<input
 							type="text"
 							placeholder="Search services..."
 							value={searchInput}
-							onChange={(e) => { setSearchInput(e.target.value); setGlobalFilter(e.target.value); }}
+							onChange={(e) => {
+								setSearchInput(e.target.value);
+								setGlobalFilter(e.target.value);
+							}}
 							className="rounded-xl bg-muted px-4 py-2.5 text-sm placeholder:text-muted-fg focus:outline-none focus:ring-2 focus:ring-accent/50 w-64"
 						/>
 						<CheckboxSelect
@@ -385,7 +438,10 @@ const ServicesTable = ({ data: initialData, categories }: { data: ServiceT[]; ca
 						{table.getRowModel().rows.map((row) => (
 							<div
 								key={row.id}
-								onClick={() => setSelected(row.original)}
+								onClick={() => {
+									setSelected(row.original);
+									setMode('edit');
+								}}
 								className={`rounded-2xl overflow-hidden flex items-center cursor-pointer transition-colors border ${selected?.id === row.original.id ? 'bg-accent/5 border-accent/20' : 'bg-surface border-border hover:border-muted-fg/20'}`}
 							>
 								{row.getVisibleCells().map((cell, i) => {

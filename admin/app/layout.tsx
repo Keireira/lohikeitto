@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import DownloadWidget from '@/components/download-widget';
 import Sidebar from '@/components/sidebar';
+import ToastContainer from '@/components/toast-container';
 import './globals.css';
 
 const geistSans = Geist({
@@ -25,6 +26,7 @@ const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
 			<Sidebar />
 			<main className="ml-16 min-h-screen">{children}</main>
 			<DownloadWidget />
+			<ToastContainer />
 		</body>
 	</html>
 );

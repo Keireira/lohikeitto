@@ -7,6 +7,7 @@ import Squircle from '@/components/squircle';
 
 const links = [
 	{ href: '/', label: 'Services', icon: '◎' },
+	{ href: '/categories', label: 'Categories', icon: '▦' },
 	{ href: '/limbus', label: 'Limbus', icon: '◌' },
 	{ href: '/s3', label: 'S3 Storage', icon: '☁' },
 	{ href: '/settings', label: 'Settings', icon: '⚙' }

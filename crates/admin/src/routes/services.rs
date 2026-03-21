@@ -91,6 +91,65 @@ pub async fn list_categories(State(state): State<AdminState>) -> Result<Json<Vec
     Ok(Json(rows))
 }
 
+/// Create a new service.
+#[derive(Debug, Deserialize)]
+pub struct CreateService {
+    pub name: String,
+    pub slug: String,
+    pub domains: Vec<String>,
+    pub category_id: Option<Uuid>,
+    pub colors: serde_json::Value,
+    pub ref_link: Option<String>,
+}
+
+pub async fn create(
+    State(state): State<AdminState>,
+    Json(req): Json<CreateService>,
+) -> Result<Json<ServiceItem>, AdminError> {
+    let id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO services (name, slug, domains, verified, category_id, colors, ref_link)
+        VALUES ($1, $2, $3, false, $4, $5, $6)
+        RETURNING id
+        "#,
+    )
+    .bind(&req.name)
+    .bind(&req.slug)
+    .bind(&req.domains)
+    .bind(req.category_id)
+    .bind(&req.colors)
+    .bind(&req.ref_link)
+    .fetch_one(&state.db)
+    .await?;
+
+    let s3_base_url = &state.config.s3_base_url;
+    let logo_url = format!("{}/logos/{}.webp", s3_base_url, req.slug);
+
+    let category = if let Some(cat_id) = req.category_id {
+        sqlx::query_as::<sqlx::Postgres, CategoryItem>(
+            "SELECT id, title FROM categories WHERE id = $1",
+        )
+        .bind(cat_id)
+        .fetch_optional(&state.db)
+        .await?
+        .map(|c| CategoryRef { id: c.id, title: c.title })
+    } else {
+        None
+    };
+
+    Ok(Json(ServiceItem {
+        id,
+        name: req.name,
+        slug: req.slug,
+        domains: req.domains,
+        verified: false,
+        colors: req.colors,
+        logo_url,
+        ref_link: req.ref_link,
+        category,
+    }))
+}
+
 /// Update a service.
 #[derive(Debug, Deserialize)]
 pub struct UpdateService {
@@ -141,4 +200,62 @@ pub async fn update(
     query.execute(&state.db).await?;
 
     Ok(Json(serde_json::json!({ "updated": id })))
+}
+
+// ── Categories CRUD ───────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCategory {
+    pub title: String,
+}
+
+pub async fn create_category(
+    State(state): State<AdminState>,
+    Json(req): Json<CreateCategory>,
+) -> Result<Json<CategoryItem>, AdminError> {
+    let id = Uuid::new_v4();
+    sqlx::query("INSERT INTO categories (id, title) VALUES ($1, $2)")
+        .bind(id)
+        .bind(&req.title)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(CategoryItem { id, title: req.title }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateCategory {
+    pub title: String,
+}
+
+pub async fn update_category(
+    State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateCategory>,
+) -> Result<Json<serde_json::Value>, AdminError> {
+    sqlx::query("UPDATE categories SET title = $1 WHERE id = $2")
+        .bind(&req.title)
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(serde_json::json!({ "updated": id })))
+}
+
+pub async fn delete_category(
+    State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AdminError> {
+    // Unassign services first
+    sqlx::query("UPDATE services SET category_id = NULL WHERE category_id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    sqlx::query("DELETE FROM categories WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(serde_json::json!({ "deleted": id })))
 }

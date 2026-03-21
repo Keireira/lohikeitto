@@ -194,13 +194,7 @@ const PhaseRow = ({
 			: active
 				? 'text-accent animate-pulse'
 				: 'text-muted-fg/30';
-	const textClass = error
-		? 'text-red-400'
-		: active
-			? 'text-foreground'
-			: done
-				? 'text-muted-fg'
-				: 'text-muted-fg/50';
+	const textClass = error ? 'text-red-400' : active ? 'text-foreground' : done ? 'text-muted-fg' : 'text-muted-fg/50';
 
 	return (
 		<div className="space-y-1">
@@ -213,13 +207,7 @@ const PhaseRow = ({
 	);
 };
 
-const DownloadToast = ({
-	state,
-	onDismiss
-}: {
-	state: DownloadState;
-	onDismiss: () => void;
-}) => {
+const DownloadToast = ({ state, onDismiss }: { state: DownloadState; onDismiss: () => void }) => {
 	if (!state.visible) return null;
 
 	const { phase, errorAt, fetched, total, downloadPct, downloadDetail, error } = state;
@@ -232,7 +220,9 @@ const DownloadToast = ({
 	const overallPct = isDone
 		? 100
 		: phase === 'fetching'
-			? total > 0 ? Math.round((fetched / total) * 60) : 0
+			? total > 0
+				? Math.round((fetched / total) * 60)
+				: 0
 			: phase === 'packaging'
 				? 65
 				: 70 + Math.round(downloadPct * 0.3);

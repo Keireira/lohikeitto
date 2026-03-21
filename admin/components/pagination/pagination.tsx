@@ -56,19 +56,27 @@ const Pagination = ({
 					<button
 						type="button"
 						disabled={!canPrev}
-						onClick={() => { table.previousPage(); scrollToTop(); }}
+						onClick={() => {
+							table.previousPage();
+							scrollToTop();
+						}}
 						className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors disabled:opacity-30 cursor-pointer outline-none"
 					>
 						{'‹'}
 					</button>
 					{getPageRange(pageIndex, pageCount).map((p, i) =>
 						p === '...' ? (
-							<span key={`e${i}`} className="px-1 text-xs text-muted-fg">...</span>
+							<span key={`e${i}`} className="px-1 text-xs text-muted-fg">
+								...
+							</span>
 						) : (
 							<button
 								key={p}
 								type="button"
-								onClick={() => { table.setPageIndex(p); scrollToTop(); }}
+								onClick={() => {
+									table.setPageIndex(p);
+									scrollToTop();
+								}}
 								className={`rounded-lg size-8 text-xs font-bold transition-colors cursor-pointer outline-none ${p === pageIndex ? 'bg-accent text-white' : 'text-foreground hover:bg-muted'}`}
 							>
 								{p + 1}
@@ -78,7 +86,10 @@ const Pagination = ({
 					<button
 						type="button"
 						disabled={!canNext}
-						onClick={() => { table.nextPage(); scrollToTop(); }}
+						onClick={() => {
+							table.nextPage();
+							scrollToTop();
+						}}
 						className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors disabled:opacity-30 cursor-pointer outline-none"
 					>
 						{'›'}
@@ -113,7 +124,10 @@ export const QuickNav = ({
 			<button
 				type="button"
 				disabled={!canPrev}
-				onClick={() => { table.previousPage(); scrollToTop(); }}
+				onClick={() => {
+					table.previousPage();
+					scrollToTop();
+				}}
 				className="rounded-full border border-border px-3.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors disabled:opacity-30 cursor-pointer outline-none"
 			>
 				Previous
@@ -124,7 +138,10 @@ export const QuickNav = ({
 			<button
 				type="button"
 				disabled={!canNext}
-				onClick={() => { table.nextPage(); scrollToTop(); }}
+				onClick={() => {
+					table.nextPage();
+					scrollToTop();
+				}}
 				className="rounded-full border border-border px-3.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors disabled:opacity-30 cursor-pointer outline-none"
 			>
 				Next
