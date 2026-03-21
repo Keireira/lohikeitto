@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useDebouncedState } from '@tanstack/react-pacer';
 
-import CheckboxSelect from '@/components/checkbox-select';
+import { FilterChip, CheckList } from '@/components/filter-bar';
 import Pagination, { QuickNav } from '@/components/pagination/pagination';
 import ServiceEditor from '@/components/service-detail';
 import ServiceIcon from '@/components/service-icon';
@@ -323,79 +323,90 @@ const ServicesTable = ({
 			<div
 				className={`space-y-5 ${creating && unlinkedLogos.length > 0 ? 'ml-[704px]' : panelOpen ? 'ml-[400px]' : ''}`}
 			>
-				{/* Filters */}
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-3">
+				{/* Command bar */}
+				<div className="flex items-center justify-between rounded-2xl bg-surface border border-border px-4 py-3">
+					<div className="flex items-center gap-1.5 flex-wrap">
 						<button
 							type="button"
-							onClick={() => {
-								setSelected(null);
-								setMode('create');
-							}}
-							className="rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-white hover:opacity-90 transition-colors cursor-pointer"
+							onClick={() => { setSelected(null); setMode('create'); }}
+							className="rounded-lg bg-accent/10 text-accent px-3.5 py-2 text-sm font-medium hover:bg-accent/20 transition-colors cursor-pointer"
 						>
-							+ Add
+							+ New
 						</button>
-						<input
-							type="text"
-							placeholder="Search services..."
-							value={searchInput}
-							onChange={(e) => {
-								setSearchInput(e.target.value);
-								setGlobalFilter(e.target.value);
-							}}
-							className="rounded-xl bg-muted px-4 py-2.5 text-sm placeholder:text-muted-fg focus:outline-none focus:ring-2 focus:ring-accent/50 w-64"
-						/>
-						<CheckboxSelect
+
+						<div className="w-px h-6 bg-border mx-2" />
+
+						<div className="relative flex items-center">
+							<span className="text-sm text-muted-fg/50 pl-2">Search</span>
+							<input
+								type="text"
+								value={searchInput}
+								onChange={(e) => { setSearchInput(e.target.value); setGlobalFilter(e.target.value); }}
+								className="bg-transparent text-sm text-foreground font-medium pl-2 pr-2 py-2 w-36 focus:outline-none focus:w-52 transition-all"
+							/>
+							{searchInput && (
+								<button type="button" onClick={() => { setSearchInput(''); setGlobalFilter(''); }} className="text-xs text-muted-fg/50 hover:text-foreground cursor-pointer pr-1">{'×'}</button>
+							)}
+						</div>
+
+						<div className="w-px h-6 bg-border mx-2" />
+
+						<FilterChip
 							label="Category"
-							options={categoryNames.map((c) => ({ value: c, label: c, count: categoryCounts[c] ?? 0 }))}
-							selected={selectedCategories}
-							onChange={(s) => {
-								setColumnFilters((prev) => {
-									const without = prev.filter((f) => f.id !== 'category');
-									return s.size > 0 ? [...without, { id: 'category', value: Array.from(s) }] : without;
-								});
-							}}
-						/>
-						<CheckboxSelect
-							label="Status"
-							options={[
-								{
-									value: 'verified',
-									label: 'Verified',
-									count: verifiedCount,
-									icon: <span className="size-1.5 rounded-full bg-success" />
-								},
-								{
-									value: 'unverified',
-									label: 'Unverified',
-									count: data.length - verifiedCount,
-									icon: <span className="size-1.5 rounded-full bg-muted-fg/30" />
-								}
-							]}
-							selected={new Set([...(showVerified ? ['verified'] : []), ...(showUnverified ? ['unverified'] : [])])}
-							onChange={(s) => {
-								setShowVerified(s.has('verified'));
-								setShowUnverified(s.has('unverified'));
-							}}
-						/>
-						{(searchInput || columnFilters.length > 0 || !showVerified || !showUnverified) && (
-							<button
-								type="button"
-								onClick={() => {
-									setSearchInput('');
-									setGlobalFilter('');
-									setColumnFilters([]);
-									setShowVerified(true);
-									setShowUnverified(true);
+							value={selectedCategories.size > 0 && selectedCategories.size < categoryNames.length ? `${selectedCategories.size}` : undefined}
+							active={selectedCategories.size > 0 && selectedCategories.size < categoryNames.length}
+							onClear={() => setColumnFilters([])}
+						>
+							<CheckList
+								options={categoryNames.map((c) => ({ value: c, label: c, count: categoryCounts[c] ?? 0 }))}
+								selected={selectedCategories}
+								searchable={categoryNames.length > 6}
+								onChange={(s) => {
+									setColumnFilters((prev) => {
+										const without = prev.filter((f) => f.id !== 'category');
+										return s.size > 0 ? [...without, { id: 'category', value: Array.from(s) }] : without;
+									});
 								}}
-								className="text-xs text-accent hover:text-accent/70 transition-colors cursor-pointer"
-							>
-								Reset
-							</button>
+							/>
+						</FilterChip>
+
+						<FilterChip
+							label="Verified"
+							active={showVerified && !showUnverified}
+							onClick={() => {
+								if (showVerified && !showUnverified) { setShowVerified(true); setShowUnverified(true); }
+								else { setShowVerified(true); setShowUnverified(false); }
+							}}
+							onClear={() => { setShowVerified(true); setShowUnverified(true); }}
+						/>
+						<FilterChip
+							label="Unverified"
+							active={!showVerified && showUnverified}
+							onClick={() => {
+								if (!showVerified && showUnverified) { setShowVerified(true); setShowUnverified(true); }
+								else { setShowVerified(false); setShowUnverified(true); }
+							}}
+							onClear={() => { setShowVerified(true); setShowUnverified(true); }}
+						/>
+
+						{(searchInput || columnFilters.length > 0 || !showVerified || !showUnverified) && (
+							<>
+								<div className="w-px h-6 bg-border mx-2" />
+								<button
+									type="button"
+									onClick={() => { setSearchInput(''); setGlobalFilter(''); setColumnFilters([]); setShowVerified(true); setShowUnverified(true); }}
+									className="rounded-lg px-3 py-2 text-sm text-muted-fg hover:text-danger hover:bg-danger/5 transition-colors cursor-pointer"
+								>
+									Clear
+								</button>
+							</>
 						)}
 					</div>
-					<QuickNav table={table} pagination={pagination} filtered={filtered} />
+
+					<div className="flex items-center gap-3 shrink-0 ml-4">
+						<span className="text-sm text-muted-fg tabular-nums">{filtered}</span>
+						<QuickNav table={table} pagination={pagination} filtered={filtered} />
+					</div>
 				</div>
 
 				{/* Table */}

@@ -6,6 +6,7 @@ import { toast } from '@/lib/toast';
 import { API_URL } from '@/lib/api';
 import { contrastText } from '@/lib/color';
 import { getCachedImage, refetchImage } from '@/lib/image-cache';
+import LogoStudio from '@/components/logo-studio';
 import Squircle from '@/components/squircle';
 import type { CategoryT, ServiceT } from '@/lib/types';
 
@@ -164,9 +165,7 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 	const [excludedSamples, setExcludedSamples] = useState<Set<number>>(new Set());
 	const [logoOk, setLogoOk] = useState(false);
 	const [logoBlobUrl, setLogoBlobUrl] = useState<string | undefined>(undefined);
-	const [logoFetch, setLogoFetch] = useState<{ url: string; source: string; size: number; width: number; height: number; format: string } | null>(null);
-	const [logoFetching, setLogoFetching] = useState<string | null>(null);
-	const [logoSaving, setLogoSaving] = useState(false);
+	const [logoStudioOpen, setLogoStudioOpen] = useState(false);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 
 	const proxiedLogo = committedSlug ? `${API_URL}/s3/file/logos/${committedSlug}.webp` : '';
@@ -185,8 +184,7 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 		setSamplerOpen(false);
 		setSamples([]);
 		setExcludedSamples(new Set());
-		setLogoFetch(null);
-		setLogoFetching(null);
+		setLogoStudioOpen(false);
 	}, [service.id]);
 
 	// Load logo + extract colors
@@ -504,113 +502,19 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					</Label>
 				</Section>
 
-				{/* ── Logo Fetch ── */}
+				{/* ── Logo ── */}
 				{slug && domains.length > 0 && (
 					<Section title="Logo">
-						{logoFetch ? (
-							<div className="space-y-3">
-								<div className="rounded-xl border border-border overflow-hidden bg-muted/30 flex items-center justify-center p-4">
-									<img
-										src={logoFetch.url}
-										alt="Logo preview"
-										className="max-w-[120px] max-h-[120px] object-contain"
-										onError={() => { toast.error('Failed to load preview'); setLogoFetch(null); }}
-									/>
-								</div>
-								<div className="flex items-center justify-center gap-3 text-[10px] text-muted-fg">
-									<span>{logoFetch.width}x{logoFetch.height}</span>
-									<span className="opacity-30">·</span>
-									<span>{logoFetch.size < 1024 ? `${logoFetch.size} B` : `${(logoFetch.size / 1024).toFixed(1)} KB`}</span>
-									<span className="opacity-30">·</span>
-									<span className="uppercase">{logoFetch.format}</span>
-									<span className="opacity-30">·</span>
-									<span>{logoFetch.source}</span>
-								</div>
-								<div className="flex gap-2">
-									<button
-										type="button"
-										disabled={logoSaving}
-										onClick={async () => {
-											setLogoSaving(true);
-											try {
-												const res = await fetch(`${API_URL}/logos/save`, {
-													method: 'POST',
-													headers: { 'Content-Type': 'application/json' },
-													body: JSON.stringify({ domain: domains[0], slug, source: logoFetch.source })
-												});
-												if (!res.ok) {
-													const err = await res.text();
-													throw new Error(err || `${res.status}`);
-												}
-												const result = await res.json();
-												toast.success(`Logo saved to ${result.saved}`);
-												setLogoFetch(null);
-												if (proxiedLogo) {
-													const newBlobUrl = await refetchImage(proxiedLogo);
-													setLogoBlobUrl(newBlobUrl);
-													setLogoOk(true);
-												}
-											} catch (e) {
-												toast.error(e instanceof Error ? e.message : 'Save failed');
-											} finally {
-												setLogoSaving(false);
-											}
-										}}
-										className="flex-1 rounded-lg bg-success py-2 text-xs font-bold text-white hover:opacity-90 transition-colors cursor-pointer disabled:opacity-50"
-									>
-										{logoSaving ? 'Saving...' : 'Approve & Save'}
-									</button>
-									<button
-										type="button"
-										onClick={() => setLogoFetch(null)}
-										className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
-									>
-										Reject
-									</button>
-								</div>
-							</div>
-						) : (
-							<div className="flex gap-2">
-								{(['brandfetch', 'logodev'] as const).map((src) => (
-									<button
-										key={src}
-										type="button"
-										disabled={logoFetching !== null}
-										onClick={async () => {
-											setLogoFetching(src);
-											try {
-												const res = await fetch(`${API_URL}/logos/fetch`, {
-													method: 'POST',
-													headers: { 'Content-Type': 'application/json' },
-													body: JSON.stringify({ domain: domains[0], slug, source: src })
-												});
-												if (!res.ok) throw new Error(`${res.status}`);
-												const data = await res.json();
-												// Probe image for dimensions and size
-												const imgRes = await fetch(data.url);
-												if (!imgRes.ok) throw new Error('Image not found');
-												const blob = await imgRes.blob();
-												const format = blob.type.split('/').pop() ?? 'unknown';
-												const dims = await new Promise<{ w: number; h: number }>((resolve) => {
-													const img = new Image();
-													img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-													img.onerror = () => resolve({ w: 0, h: 0 });
-													img.src = URL.createObjectURL(blob);
-												});
-												setLogoFetch({ url: data.url, source: src, size: blob.size, width: dims.w, height: dims.h, format });
-											} catch (e) {
-												toast.error(e instanceof Error ? e.message : 'Fetch failed');
-											} finally {
-												setLogoFetching(null);
-											}
-										}}
-										className="flex-1 rounded-lg border border-border py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50"
-									>
-										{logoFetching === src ? 'Loading...' : src === 'logodev' ? 'logo.dev' : 'Brandfetch'}
-									</button>
-								))}
-							</div>
-						)}
+						<button
+							type="button"
+							onClick={() => setLogoStudioOpen(true)}
+							className="w-full ed-input flex items-center gap-3 cursor-pointer hover:border-accent transition-colors text-left"
+						>
+							{logoBlobUrl && <img src={logoBlobUrl} alt="" className="size-8 rounded-lg object-cover bg-muted" />}
+							{!logoBlobUrl && <div className="size-8 rounded-lg bg-muted" />}
+							<span className="text-sm flex-1 text-muted-fg">{committedSlug}.webp</span>
+							<span className="text-[10px] text-muted-fg">Logo Studio</span>
+						</button>
 					</Section>
 				)}
 
@@ -728,6 +632,30 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					proxiedLogo={proxiedLogo}
 					name={name || service.name}
 					onClose={() => setPreviewOpen(false)}
+				/>
+			)}
+
+			{/* Logo Studio */}
+			{logoStudioOpen && slug && domains.length > 0 && (
+				<LogoStudio
+					domain={domains[0]}
+					slug={slug}
+					onSave={async (source) => {
+						const res = await fetch(`${API_URL}/logos/save`, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ domain: domains[0], slug, source })
+						});
+						if (!res.ok) { const err = await res.text(); throw new Error(err || `${res.status}`); }
+						const result = await res.json();
+						toast.success(`Logo saved to ${result.saved}`);
+						if (proxiedLogo) {
+							const newBlobUrl = await refetchImage(proxiedLogo);
+							setLogoBlobUrl(newBlobUrl);
+							setLogoOk(true);
+						}
+					}}
+					onClose={() => setLogoStudioOpen(false)}
 				/>
 			)}
 
