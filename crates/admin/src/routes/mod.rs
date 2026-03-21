@@ -34,6 +34,7 @@ pub fn router() -> Router<AdminState> {
         .route("/s3/copy", post(s3::copy_move))
         .route("/s3/mkdir", post(s3::mkdir))
         .route("/s3/upload/{*key}", put(s3::upload))
+        .route("/s3/rename", post(s3::rename))
         .route("/logos/fetch", post(logos::fetch_logo))
         .route("/logos/save", post(logos::save_logo))
         .route("/db/export", get(database::export_sql))

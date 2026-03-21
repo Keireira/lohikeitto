@@ -395,6 +395,30 @@ pub async fn archive_keys_stream(
     Ok(Sse::new(stream))
 }
 
+/// Rename a file in S3 (copy + delete old).
+#[derive(Debug, Deserialize)]
+pub struct RenameRequest {
+    pub from: String,
+    pub to: String,
+}
+
+pub async fn rename(
+    State(state): State<AdminState>,
+    Json(req): Json<RenameRequest>,
+) -> Result<Json<serde_json::Value>, AdminError> {
+    let data = state.bucket.get_object(&req.from).await
+        .map_err(|e| AdminError::Internal(format!("get {}: {}", req.from, e)))?;
+
+    let ct = mime_from_ext(req.to.rsplit('/').next().unwrap_or(&req.to));
+    state.bucket.put_object_with_content_type(&req.to, data.bytes(), ct).await
+        .map_err(|e| AdminError::Internal(format!("put {}: {}", req.to, e)))?;
+
+    state.bucket.delete_object(&req.from).await
+        .map_err(|e| AdminError::Internal(format!("delete {}: {}", req.from, e)))?;
+
+    Ok(Json(serde_json::json!({ "from": req.from, "to": req.to })))
+}
+
 /// In-memory cache for prepared archives (token → zip bytes).
 pub type ArchiveCache = Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>>;
 

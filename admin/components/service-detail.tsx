@@ -415,6 +415,17 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 				});
 				if (!res.ok) throw new Error(`Save failed: ${res.status}`);
 
+				// Rename logo in S3 if slug changed
+				if (slug !== service.slug) {
+					try {
+						await fetch(`${API_URL}/s3/rename`, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ from: `logos/${service.slug}.webp`, to: `logos/${slug}.webp` })
+						});
+					} catch { /* best-effort */ }
+				}
+
 				const cat = categories.find((c) => c.id === categoryId) ?? null;
 				onUpdate({
 					...service,
@@ -436,7 +447,7 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 	};
 
 	return (
-		<div className="rounded-2xl bg-surface border border-border overflow-hidden flex flex-col overflow-x-hidden">
+		<div className="rounded-2xl bg-surface border border-border overflow-hidden flex flex-col overflow-x-hidden h-[calc(100vh-72px-2rem)]">
 			{/* Header — full color background */}
 			<div className="shrink-0 px-6 py-5 space-y-4" style={{ backgroundColor: color }}>
 				{/* Logo + name + close */}
@@ -636,24 +647,25 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 			)}
 
 			{/* Logo Studio */}
-			{logoStudioOpen && slug && domains.length > 0 && (
+			{logoStudioOpen && domains.length > 0 && (
 				<LogoStudio
 					domain={domains[0]}
-					slug={slug}
-					onSave={async (source) => {
+					slug={committedSlug || slug}
+					currentLogoUrl={proxiedLogo}
+					onSave={async (source, saveSlug) => {
 						const res = await fetch(`${API_URL}/logos/save`, {
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ domain: domains[0], slug, source })
+							body: JSON.stringify({ domain: domains[0], slug: saveSlug, source })
 						});
 						if (!res.ok) { const err = await res.text(); throw new Error(err || `${res.status}`); }
-						const result = await res.json();
-						toast.success(`Logo saved to ${result.saved}`);
-						if (proxiedLogo) {
-							const newBlobUrl = await refetchImage(proxiedLogo);
-							setLogoBlobUrl(newBlobUrl);
-							setLogoOk(true);
-						}
+						toast.success(`Logo saved to logos/${saveSlug}.webp`);
+						setSlug(saveSlug);
+						setCommittedSlug(saveSlug);
+						const newUrl = `${API_URL}/s3/file/logos/${saveSlug}.webp`;
+						const newBlobUrl = await refetchImage(newUrl);
+						setLogoBlobUrl(newBlobUrl);
+						setLogoOk(true);
 					}}
 					onClose={() => setLogoStudioOpen(false)}
 				/>
@@ -1054,23 +1066,14 @@ const ColorStudioModal = ({
 											);
 										})}
 									</div>
-									<div className="flex gap-3 pt-1">
+									<div className="flex items-center justify-between pt-1">
+										<span className="text-xs text-muted-fg">{includedSamples.length}/{samples.length} samples</span>
 										<button
 											type="button"
-											onClick={averageSamples}
-											className="rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white cursor-pointer hover:opacity-90"
+											onClick={() => { setSamples([]); setExcludedSamples(new Set()); }}
+											className="text-xs text-muted-fg hover:text-danger cursor-pointer transition-colors"
 										>
-											Apply average ({includedSamples.length}/{samples.length})
-										</button>
-										<button
-											type="button"
-											onClick={() => {
-												setSamples([]);
-												setExcludedSamples(new Set());
-											}}
-											className="rounded-full border border-border px-5 py-2.5 text-sm text-muted-fg cursor-pointer hover:text-foreground"
-										>
-											Clear
+											Clear all
 										</button>
 									</div>
 								</div>

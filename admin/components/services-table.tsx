@@ -252,7 +252,7 @@ const ServicesTable = ({
 	return (
 		<div>
 			{panelOpen && (
-				<div className="fixed top-[72px] left-[64px] bottom-0 w-[400px] z-30 overflow-y-auto overscroll-contain bg-background border-r border-border p-4 pb-16">
+				<div className="fixed top-[72px] left-[64px] bottom-0 w-[400px] z-30 bg-background border-r border-border p-4">
 					<ServiceEditor
 						service={selected ?? undefined}
 						categories={categories}
