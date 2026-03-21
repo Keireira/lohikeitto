@@ -1,5 +1,5 @@
-use axum::{Json, extract::State};
-use serde::Serialize;
+use axum::{Json, extract::{Path, State}};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::app::AdminState;
@@ -37,8 +37,16 @@ struct ServiceWithCategory {
     category_title: Option<String>,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CategoryItem {
+    pub id: Uuid,
+    pub title: String,
+}
+
+/// List all services.
 pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceItem>>, AdminError> {
     let s3_base_url = &state.config.s3_base_url;
+
     let rows = sqlx::query_as::<sqlx::Postgres, ServiceWithCategory>(
         r#"
         SELECT s.id, s.name, s.slug, s.domains, s.verified, s.colors, s.ref_link,
@@ -70,4 +78,67 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
         .collect();
 
     Ok(Json(items))
+}
+
+/// List all categories.
+pub async fn list_categories(State(state): State<AdminState>) -> Result<Json<Vec<CategoryItem>>, AdminError> {
+    let rows = sqlx::query_as::<sqlx::Postgres, CategoryItem>(
+        "SELECT id, title FROM categories ORDER BY title",
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(rows))
+}
+
+/// Update a service.
+#[derive(Debug, Deserialize)]
+pub struct UpdateService {
+    pub name: Option<String>,
+    pub slug: Option<String>,
+    pub domains: Option<Vec<String>>,
+    pub verified: Option<bool>,
+    pub category_id: Option<Uuid>,
+    pub colors: Option<serde_json::Value>,
+    pub ref_link: Option<String>,
+}
+
+pub async fn update(
+    State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateService>,
+) -> Result<Json<serde_json::Value>, AdminError> {
+    // Build dynamic update
+    let mut sets = Vec::new();
+    let mut idx = 2u32; // $1 is id
+
+    if req.name.is_some() { sets.push(format!("name = ${idx}")); idx += 1; }
+    if req.slug.is_some() { sets.push(format!("slug = ${idx}")); idx += 1; }
+    if req.domains.is_some() { sets.push(format!("domains = ${idx}")); idx += 1; }
+    if req.verified.is_some() { sets.push(format!("verified = ${idx}")); idx += 1; }
+    if req.category_id.is_some() { sets.push(format!("category_id = ${idx}")); idx += 1; }
+    if req.colors.is_some() { sets.push(format!("colors = ${idx}")); idx += 1; }
+    if req.ref_link.is_some() { sets.push(format!("ref_link = ${idx}")); idx += 1; }
+
+    if sets.is_empty() {
+        return Ok(Json(serde_json::json!({ "updated": false })));
+    }
+
+    let sql = format!("UPDATE services SET {} WHERE id = $1", sets.join(", "));
+
+    let mut query = sqlx::query(&sql).bind(id);
+
+    if let Some(v) = &req.name { query = query.bind(v); }
+    if let Some(v) = &req.slug { query = query.bind(v); }
+    if let Some(v) = &req.domains { query = query.bind(v); }
+    if let Some(v) = &req.verified { query = query.bind(v); }
+    if let Some(v) = &req.category_id { query = query.bind(v); }
+    if let Some(v) = &req.colors { query = query.bind(v); }
+    if let Some(v) = &req.ref_link { query = query.bind(v); }
+
+    let _ = idx; // suppress unused warning
+
+    query.execute(&state.db).await?;
+
+    Ok(Json(serde_json::json!({ "updated": id })))
 }

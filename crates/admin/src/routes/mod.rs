@@ -1,4 +1,5 @@
 mod health;
+mod limbus;
 pub mod s3;
 mod services;
 
@@ -11,9 +12,15 @@ pub fn router() -> Router<AdminState> {
     Router::new()
         .route("/health", get(health::health_check))
         .route("/services", get(services::list))
+        .route("/services/{id}", put(services::update))
+        .route("/categories", get(services::list_categories))
+        .route("/limbus", get(limbus::list))
+        .route("/limbus/{id}", delete(limbus::remove))
+        .route("/limbus/{id}/approve", post(limbus::approve))
         .route("/s3", get(s3::list))
         .route("/s3/info", get(s3::info))
         .route("/s3/archive", get(s3::archive_stream))
+        .route("/s3/archive-keys", post(s3::archive_keys_stream))
         .route("/s3/archive/{token}", get(s3::archive_download))
         .route("/s3/file/{*key}", get(s3::download_file))
         .route("/s3/delete", delete(s3::delete_objects))

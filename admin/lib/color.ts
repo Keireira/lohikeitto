@@ -22,13 +22,24 @@ const luminance = (r: number, g: number, b: number): number => {
 };
 
 /**
- * Returns '#000000' or '#ffffff' for text that meets WCAG AA (4.5:1) contrast
+ * Contrast ratio between two luminances.
+ */
+const contrastRatio = (l1: number, l2: number): number => {
+	const lighter = Math.max(l1, l2);
+	const darker = Math.min(l1, l2);
+	return (lighter + 0.05) / (darker + 0.05);
+};
+
+/**
+ * Returns '#000000' or '#ffffff' — whichever has higher contrast
  * against the given background hex color.
  */
 const contrastText = (bgHex: string): string => {
 	const [r, g, b] = hexToRgb(bgHex);
 	const lum = luminance(r, g, b);
-	return lum > 0.179 ? '#000000' : '#ffffff';
+	const blackContrast = contrastRatio(lum, 0);
+	const whiteContrast = contrastRatio(1, lum);
+	return whiteContrast >= blackContrast ? '#ffffff' : '#000000';
 };
 
 export { contrastText };

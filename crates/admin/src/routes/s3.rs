@@ -334,6 +334,67 @@ fn mime_from_ext(filename: &str) -> &str {
     }
 }
 
+/// SSE endpoint: archive specific keys (not by prefix).
+pub async fn archive_keys_stream(
+    State(state): State<AdminState>,
+    Json(keys): Json<Vec<String>>,
+) -> Result<Sse<impl Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>>, AdminError>
+{
+    if keys.is_empty() {
+        return Err(AdminError::NotFound);
+    }
+
+    let total = keys.len();
+    let bucket = state.bucket.clone();
+    let cache = state.archive_cache.clone();
+
+    let stream = async_stream::stream! {
+        use axum::response::sse::Event;
+
+        let mut buf = Vec::new();
+        let mut zip = ZipWriter::new(std::io::Cursor::new(&mut buf));
+        let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        for (i, key) in keys.iter().enumerate() {
+            yield Ok(Event::default()
+                .event("fetching")
+                .data(format!("{}/{}", i + 1, total)));
+
+            match bucket.get_object(key).await {
+                Ok(response) => {
+                    // Preserve directory structure in zip
+                    if let Err(e) = zip.start_file(key.as_str(), options) {
+                        yield Ok(Event::default().event("error").data(e.to_string()));
+                        return;
+                    }
+                    if let Err(e) = zip.write_all(response.bytes()) {
+                        yield Ok(Event::default().event("error").data(e.to_string()));
+                        return;
+                    }
+                }
+                Err(e) => {
+                    yield Ok(Event::default().event("error").data(format!("Failed to get {key}: {e}")));
+                    return;
+                }
+            }
+        }
+
+        yield Ok(Event::default().event("packaging").data("creating archive"));
+
+        if let Err(e) = zip.finish() {
+            yield Ok(Event::default().event("error").data(e.to_string()));
+            return;
+        }
+
+        let token = uuid::Uuid::new_v4().to_string();
+        cache.lock().await.insert(token.clone(), buf);
+
+        yield Ok(Event::default().event("ready").data(token));
+    };
+
+    Ok(Sse::new(stream))
+}
+
 /// In-memory cache for prepared archives (token → zip bytes).
 pub type ArchiveCache = Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>>;
 

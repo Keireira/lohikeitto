@@ -3,130 +3,88 @@
 import {
 	type ColumnDef,
 	type ColumnFiltersState,
-	type Header,
 	type SortingState,
 	flexRender,
 	getCoreRowModel,
 	getFilteredRowModel,
+	getPaginationRowModel,
 	getSortedRowModel,
 	useReactTable
 } from '@tanstack/react-table';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useDebouncedState } from '@tanstack/react-pacer';
 
-import ServiceDetail from '@/components/service-detail';
+import CheckboxSelect from '@/components/checkbox-select';
+import Pagination, { QuickNav } from '@/components/pagination/pagination';
+import ServiceEditor from '@/components/service-detail';
+import Squircle from '@/components/squircle';
 import { contrastText } from '@/lib/color';
-import type { ServiceT } from '@/lib/types';
+import { getCachedImage } from '@/lib/image-cache';
+import type { CategoryT, ServiceT } from '@/lib/types';
 
 // ── Atoms ──────────────────────────────────────────
 
+const proxyUrl = (url: string): string => {
+	try {
+		return `/proxy-s3${new URL(url).pathname}`;
+	} catch {
+		return url;
+	}
+};
+
 const ServiceIcon = ({ src, name, color }: { src: string; name: string; color: string }) => {
-	const [ok, setOk] = useState<boolean | null>(null);
+	const [cachedSrc, setCachedSrc] = useState<string | undefined>(undefined);
+	const proxied = proxyUrl(src);
 
 	useEffect(() => {
-		const img = new Image();
-		img.onload = () => setOk(true);
-		img.onerror = () => setOk(false);
-		img.src = src;
-	}, [src]);
+		let cancelled = false;
+		getCachedImage(proxied)
+			.then((u) => {
+				if (!cancelled) setCachedSrc(u);
+			})
+			.catch(() => {
+				if (!cancelled) setCachedSrc(undefined);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [proxied]);
 
 	return (
-		<div
-			className="size-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold bg-center bg-cover"
-			style={{
-				backgroundColor: color,
-				color: contrastText(color),
-				...(ok ? { backgroundImage: `url(${src})` } : {})
-			}}
-		>
-			{!ok && name.charAt(0).toUpperCase()}
-		</div>
+		<Squircle
+			size={40}
+			color={color}
+			src={cachedSrc}
+			fallback={!cachedSrc ? name.charAt(0).toUpperCase() : undefined}
+			style={{ color: contrastText(color) }}
+		/>
 	);
 };
 
-const ColorChip = ({ color }: { color: string }) => (
-	<span
-		className="inline-block rounded-md px-2 py-0.5 text-xs font-mono font-medium"
-		style={{ backgroundColor: color, color: contrastText(color) }}
-	>
-		{color}
-	</span>
-);
-
-const DomainLink = ({ domain }: { domain: string }) => (
-	<a
-		href={`https://${domain}`}
-		target="_blank"
-		rel="noopener noreferrer"
-		className="rounded bg-muted px-2 py-0.5 text-xs font-mono text-muted-fg hover:text-accent transition-colors"
-	>
-		{domain}
-	</a>
-);
-
-const SortIcon = ({ direction }: { direction: false | 'asc' | 'desc' }) => {
-	if (!direction) return <span className="ml-1 opacity-30">{'↕'}</span>;
-	return <span className="ml-1">{direction === 'asc' ? '↑' : '↓'}</span>;
-};
-
-// ── Column header with sort + per-column filter ────
-
-const ColumnHeader = <T,>({
-	header,
-	filterElement
+const SortHeader = ({
+	label,
+	active,
+	dir,
+	onClick
 }: {
-	header: Header<T, unknown>;
-	filterElement?: React.ReactNode;
-}) => {
-	const canSort = header.column.getCanSort();
-
-	return (
-		<div className="space-y-2">
-			<button
-				type="button"
-				className={`flex items-center gap-0.5 ${canSort ? 'cursor-pointer select-none hover:text-foreground' : ''}`}
-				onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-			>
-				{flexRender(header.column.columnDef.header, header.getContext())}
-				{canSort && <SortIcon direction={header.column.getIsSorted()} />}
-			</button>
-			{filterElement}
-		</div>
-	);
-};
-
-// ── Filter inputs ──────────────────────────────────
-
-const TextFilter = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-	<input
-		type="text"
-		value={value}
-		onChange={(e) => onChange(e.target.value)}
-		placeholder="Filter..."
-		className="w-full rounded border border-border bg-background px-2 py-1 text-xs font-normal normal-case tracking-normal placeholder:text-muted-fg/50 focus:outline-none focus:ring-1 focus:ring-accent/50"
-	/>
-);
-
-const SelectFilter = ({
-	value,
-	options,
-	onChange
-}: {
-	value: string;
-	options: string[];
-	onChange: (v: string) => void;
+	label: string;
+	active: boolean;
+	dir: 'asc' | 'desc';
+	onClick: () => void;
 }) => (
-	<select
-		value={value}
-		onChange={(e) => onChange(e.target.value)}
-		className="w-full rounded border border-border bg-background px-2 py-1 text-xs font-normal normal-case tracking-normal text-foreground focus:outline-none focus:ring-1 focus:ring-accent/50"
+	<button
+		type="button"
+		onClick={onClick}
+		className="flex items-center gap-1 cursor-pointer select-none hover:text-foreground transition-colors uppercase"
 	>
-		<option value="">All</option>
-		{options.map((o) => (
-			<option key={o} value={o}>
-				{o}
-			</option>
-		))}
-	</select>
+		{label}
+		{active ? (
+			<span className="text-accent">{dir === 'asc' ? '↑' : '↓'}</span>
+		) : (
+			<span className="opacity-20">{'↕'}</span>
+		)}
+	</button>
 );
 
 // ── Columns ────────────────────────────────────────
@@ -134,18 +92,19 @@ const SelectFilter = ({
 const columns: ColumnDef<ServiceT>[] = [
 	{
 		accessorKey: 'name',
-		header: 'Service',
+		header: 'Name',
 		cell: ({ row }) => (
-			<div className="flex items-center gap-3">
-				<ServiceIcon
-					src={row.original.logo_url}
-					name={row.original.name}
-					color={row.original.colors.primary}
-				/>
-				<div>
-					<span className="font-medium">{row.original.name}</span>
-					<span className="ml-2 text-xs text-muted-fg font-mono">{row.original.slug}</span>
+			<div className="flex items-center gap-4">
+				<div className="relative">
+					<ServiceIcon src={row.original.logo_url} name={row.original.name} color={row.original.colors.primary} />
+					{row.original.verified && (
+						<span
+							className="absolute -bottom-0.5 -right-0.5 size-3.5 rounded-full bg-success border-2 border-surface"
+							title="Verified"
+						/>
+					)}
 				</div>
+				<p className="font-semibold text-foreground">{row.original.name}</p>
 			</div>
 		),
 		sortingFn: 'alphanumeric'
@@ -155,10 +114,24 @@ const columns: ColumnDef<ServiceT>[] = [
 		id: 'domains',
 		header: 'Domains',
 		cell: ({ row }) => (
-			<div className="flex flex-wrap gap-1">
-				{row.original.domains.map((d) => (
-					<DomainLink key={d} domain={d} />
+			<div className="flex flex-wrap gap-1.5">
+				{row.original.domains.slice(0, 2).map((d) => (
+					<a
+						key={d}
+						href={`https://${d}`}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-xs text-accent hover:underline rounded-full bg-accent/5 px-2.5 py-0.5 font-mono"
+						onClick={(e) => e.stopPropagation()}
+					>
+						{d}
+					</a>
 				))}
+				{row.original.domains.length > 2 && (
+					<span className="text-xs text-muted-fg rounded-full bg-muted px-2 py-0.5">
+						+{row.original.domains.length - 2}
+					</span>
+				)}
 			</div>
 		),
 		filterFn: (row, _columnId, filterValue: string) =>
@@ -169,66 +142,103 @@ const columns: ColumnDef<ServiceT>[] = [
 		accessorFn: (row) => row.category?.title ?? '',
 		id: 'category',
 		header: 'Category',
-		cell: ({ row }) =>
-			row.original.category ? (
-				<span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs text-accent whitespace-nowrap">
-					{row.original.category.title}
+		cell: ({ row }) => (
+			<div className="space-y-2.5">
+				{row.original.category ? (
+					<span className="text-sm text-muted-fg">{row.original.category.title}</span>
+				) : (
+					<span className="text-xs text-muted-fg/50">—</span>
+				)}
+				<span
+					className="block w-fit rounded-full px-2 py-px text-[9px] font-mono opacity-60"
+					style={{ backgroundColor: row.original.colors.primary, color: contrastText(row.original.colors.primary) }}
+				>
+					{row.original.colors.primary}
 				</span>
-			) : (
-				<span className="text-xs text-muted-fg">--</span>
-			),
-		sortingFn: 'alphanumeric'
-	},
-	{
-		accessorKey: 'verified',
-		header: 'Verified',
-		cell: ({ row }) =>
-			row.original.verified ? (
-				<span className="text-emerald-400">{'✓'}</span>
-			) : (
-				<span className="text-muted-fg">{'✕'}</span>
-			),
-		filterFn: (row, _columnId, filterValue: string) => {
-			if (filterValue === '') return true;
-			return filterValue === 'yes' ? row.original.verified : !row.original.verified;
-		}
-	},
-	{
-		accessorFn: (row) => row.colors.primary,
-		id: 'color',
-		header: 'Color',
-		cell: ({ row }) => <ColorChip color={row.original.colors.primary} />,
-		enableGlobalFilter: false,
+			</div>
+		),
+		filterFn: (row, _columnId, filterValue: string[]) => {
+			if (!filterValue || filterValue.length === 0) return true;
+			return filterValue.includes(row.original.category?.title ?? '');
+		},
 		sortingFn: 'alphanumeric'
 	}
 ];
 
 // ── Table ──────────────────────────────────────────
 
-const ServicesTable = ({ data }: { data: ServiceT[] }) => {
-	const [globalFilter, setGlobalFilter] = useState('');
+const ServicesTable = ({ data: initialData, categories }: { data: ServiceT[]; categories: CategoryT[] }) => {
+	const searchParams = useSearchParams();
+
+	const [data, setData] = useState(initialData);
+	const [searchInput, setSearchInput] = useState('');
+	const [globalFilter, setGlobalFilter] = useDebouncedState('', { wait: 200 });
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
-	const [selected, setSelected] = useState<ServiceT | null>(null);
+	const [selected, setSelected] = useState<ServiceT | null>(() => {
+		const editId = searchParams.get('edit');
+		return editId ? (initialData.find((s) => s.id === editId) ?? null) : null;
+	});
+	const [showVerified, setShowVerified] = useState(true);
+	const [showUnverified, setShowUnverified] = useState(true);
+	const [pagination, setPagination] = useState(() => ({
+		pageIndex: Math.max(0, Number(searchParams.get('page') ?? 1) - 1),
+		pageSize: Number(searchParams.get('per_page')) || 50
+	}));
+	const tableRef = useRef<HTMLDivElement>(null);
 
-	const categories = useMemo(() => {
-		const set = new Set<string>();
+	// Sync state → URL (without triggering Next.js navigation)
+	useEffect(() => {
+		const params = new URLSearchParams();
+		if (selected) params.set('edit', selected.id);
+		if (pagination.pageIndex > 0) params.set('page', String(pagination.pageIndex + 1));
+		if (pagination.pageSize !== 50) params.set('per_page', String(pagination.pageSize));
+		const qs = params.toString();
+		const url = qs ? `/?${qs}` : '/';
+		window.history.replaceState(null, '', url);
+	}, [selected, pagination]);
+
+	const visibleData = useMemo(
+		() => (showVerified && showUnverified ? data : data.filter((s) => (s.verified ? showVerified : showUnverified))),
+		[data, showVerified, showUnverified]
+	);
+	const verifiedCount = useMemo(() => data.filter((s) => s.verified).length, [data]);
+
+
+	const categoryNames = useMemo(() => categories.map((c) => c.title).sort(), [categories]);
+	const categoryCounts = useMemo(() => {
+		const counts: Record<string, number> = {};
 		for (const s of data) {
-			if (s.category) set.add(s.category.title);
+			const cat = s.category?.title;
+			if (cat) counts[cat] = (counts[cat] ?? 0) + 1;
 		}
-		return [...set].sort();
+		return counts;
 	}, [data]);
+	const selectedCategories = useMemo(
+		() => new Set((columnFilters.find((f) => f.id === 'category')?.value as string[]) ?? []),
+		[columnFilters]
+	);
+
+	// Reset to page 0 when filters change
+	const filterKey = `${showVerified}|${showUnverified}|${globalFilter}|${JSON.stringify(columnFilters)}`;
+	const prevFilterKey = useRef(filterKey);
+	if (filterKey !== prevFilterKey.current) {
+		prevFilterKey.current = filterKey;
+		if (pagination.pageIndex !== 0) setPagination((p) => ({ ...p, pageIndex: 0 }));
+	}
 
 	const table = useReactTable({
-		data,
+		data: visibleData,
 		columns,
-		state: { globalFilter, columnFilters, sorting },
-		onGlobalFilterChange: setGlobalFilter,
+		state: { globalFilter, columnFilters, sorting, pagination },
 		onColumnFiltersChange: setColumnFilters,
 		onSortingChange: setSorting,
+		onPaginationChange: setPagination,
 		getCoreRowModel: getCoreRowModel(),
 		getFilteredRowModel: getFilteredRowModel(),
 		getSortedRowModel: getSortedRowModel(),
+		getPaginationRowModel: getPaginationRowModel(),
+		autoResetPageIndex: false,
 		globalFilterFn: (row, _columnId, filterValue: string) => {
 			const q = filterValue.toLowerCase();
 			const s = row.original;
@@ -236,111 +246,164 @@ const ServicesTable = ({ data }: { data: ServiceT[] }) => {
 				s.name.toLowerCase().includes(q) ||
 				s.slug.toLowerCase().includes(q) ||
 				s.domains.some((d) => d.toLowerCase().includes(q)) ||
-				(s.category?.title.toLowerCase().includes(q) ?? false) ||
-				s.colors.primary.toLowerCase().includes(q)
+				(s.category?.title.toLowerCase().includes(q) ?? false)
 			);
 		}
 	});
 
-	const getColumnFilter = (id: string): string =>
-		(columnFilters.find((f) => f.id === id)?.value as string) ?? '';
-
-	const setColumnFilter = (id: string, value: string) => {
-		setColumnFilters((prev) => {
-			const without = prev.filter((f) => f.id !== id);
-			return value ? [...without, { id, value }] : without;
-		});
-	};
-
-	const filterElements: Record<string, React.ReactNode> = {
-		name: <TextFilter value={getColumnFilter('name')} onChange={(v) => setColumnFilter('name', v)} />,
-		domains: <TextFilter value={getColumnFilter('domains')} onChange={(v) => setColumnFilter('domains', v)} />,
-		category: (
-			<SelectFilter
-				value={getColumnFilter('category')}
-				options={categories}
-				onChange={(v) => setColumnFilter('category', v)}
-			/>
-		),
-		verified: (
-			<SelectFilter
-				value={getColumnFilter('verified')}
-				options={['yes', 'no']}
-				onChange={(v) => setColumnFilter('verified', v)}
-			/>
-		),
-		color: <TextFilter value={getColumnFilter('color')} onChange={(v) => setColumnFilter('color', v)} />
-	};
+	// Derived counts for pagination
+	const filtered = table.getFilteredRowModel().rows.length;
+	const pageCount = Math.ceil(filtered / pagination.pageSize);
+	if (pageCount > 0 && pagination.pageIndex >= pageCount) {
+		setPagination((p) => ({ ...p, pageIndex: Math.max(0, pageCount - 1) }));
+	}
 
 	return (
-		<div className="flex gap-6">
-		{selected && (
-			<div className="w-96 shrink-0 sticky top-8 self-start">
-				<ServiceDetail service={selected} onClose={() => setSelected(null)} />
-			</div>
-		)}
-		<div className={`space-y-4 ${selected ? 'flex-1 min-w-0' : 'w-full'}`}>
-			<div className="flex items-center gap-3">
-				<input
-					type="text"
-					placeholder="Search across all columns..."
-					value={globalFilter}
-					onChange={(e) => setGlobalFilter(e.target.value)}
-					className="rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-fg focus:outline-none focus:ring-2 focus:ring-accent/50 w-80"
-				/>
-				<span className="text-xs text-muted-fg">
-					{table.getFilteredRowModel().rows.length} of {data.length}
-				</span>
-			</div>
+		<div>
+			{selected && (
+				<div className="fixed top-[72px] left-[64px] bottom-0 w-[400px] z-30 overflow-y-auto overscroll-contain bg-background border-r border-border p-4">
+					<ServiceEditor
+						service={selected}
+						categories={categories}
+						onClose={() => setSelected(null)}
+						onUpdate={(updated) => {
+							setData((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+							setSelected(updated);
+						}}
+					/>
+					<button
+						type="button"
+						onClick={() => setSelected(null)}
+						className="fixed left-[448px] top-[78px] size-7 rounded-full bg-surface border border-border shadow-md flex items-center justify-center text-xs text-muted-fg hover:text-foreground transition-colors cursor-pointer z-30"
+						title="Close editor"
+					>
+						{'✕'}
+					</button>
+				</div>
+			)}
 
-			<div className="overflow-x-auto rounded-lg border border-border">
-				<table className="w-full text-base">
-					<thead>
-						{table.getHeaderGroups().map((hg) => (
-							<tr key={hg.id} className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-fg">
-								{hg.headers.map((header) => (
-									<th
-										key={header.id}
-										className={`px-4 py-3 font-medium align-top ${header.id === 'verified' ? 'text-center' : ''}`}
-									>
-										<ColumnHeader
-											header={header}
-											filterElement={filterElements[header.id]}
-										/>
-									</th>
-								))}
-							</tr>
-						))}
-					</thead>
-					<tbody>
+			<div className={`space-y-5 ${selected ? 'ml-[400px]' : ''}`}>
+				{/* Filters */}
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						<input
+							type="text"
+							placeholder="Search services..."
+							value={searchInput}
+							onChange={(e) => { setSearchInput(e.target.value); setGlobalFilter(e.target.value); }}
+							className="rounded-xl bg-muted px-4 py-2.5 text-sm placeholder:text-muted-fg focus:outline-none focus:ring-2 focus:ring-accent/50 w-64"
+						/>
+						<CheckboxSelect
+							label="Category"
+							options={categoryNames.map((c) => ({ value: c, label: c, count: categoryCounts[c] ?? 0 }))}
+							selected={selectedCategories}
+							onChange={(s) => {
+								setColumnFilters((prev) => {
+									const without = prev.filter((f) => f.id !== 'category');
+									return s.size > 0 ? [...without, { id: 'category', value: Array.from(s) }] : without;
+								});
+							}}
+						/>
+						<CheckboxSelect
+							label="Status"
+							options={[
+								{
+									value: 'verified',
+									label: 'Verified',
+									count: verifiedCount,
+									icon: <span className="size-1.5 rounded-full bg-success" />
+								},
+								{
+									value: 'unverified',
+									label: 'Unverified',
+									count: data.length - verifiedCount,
+									icon: <span className="size-1.5 rounded-full bg-muted-fg/30" />
+								}
+							]}
+							selected={new Set([...(showVerified ? ['verified'] : []), ...(showUnverified ? ['unverified'] : [])])}
+							onChange={(s) => {
+								setShowVerified(s.has('verified'));
+								setShowUnverified(s.has('unverified'));
+							}}
+						/>
+						{(searchInput || columnFilters.length > 0 || !showVerified || !showUnverified) && (
+							<button
+								type="button"
+								onClick={() => {
+									setSearchInput('');
+									setGlobalFilter('');
+									setColumnFilters([]);
+									setShowVerified(true);
+									setShowUnverified(true);
+								}}
+								className="text-xs text-accent hover:text-accent/70 transition-colors cursor-pointer"
+							>
+								Reset
+							</button>
+						)}
+					</div>
+					<QuickNav table={table} pagination={pagination} filtered={filtered} />
+				</div>
+
+				{/* Table */}
+				<div ref={tableRef}>
+					{/* Header */}
+					<div className="flex py-4 text-[11px] font-bold text-muted-fg tracking-wider uppercase">
+						<div className="flex-[3] pl-6">
+							<SortHeader
+								label="Name"
+								active={table.getColumn('name')?.getIsSorted() !== false}
+								dir={(table.getColumn('name')?.getIsSorted() || 'asc') as 'asc' | 'desc'}
+								onClick={() => table.getColumn('name')?.toggleSorting()}
+							/>
+						</div>
+						<div className="flex-[2] px-6">
+							<SortHeader
+								label="Domains"
+								active={table.getColumn('domains')?.getIsSorted() !== false}
+								dir={(table.getColumn('domains')?.getIsSorted() || 'asc') as 'asc' | 'desc'}
+								onClick={() => table.getColumn('domains')?.toggleSorting()}
+							/>
+						</div>
+						<div className="flex-[2] px-6">
+							<SortHeader
+								label="Category"
+								active={table.getColumn('category')?.getIsSorted() !== false}
+								dir={(table.getColumn('category')?.getIsSorted() || 'asc') as 'asc' | 'desc'}
+								onClick={() => table.getColumn('category')?.toggleSorting()}
+							/>
+						</div>
+					</div>
+
+					{/* Rows */}
+					<div className="space-y-2">
 						{table.getRowModel().rows.length === 0 && (
-							<tr>
-								<td colSpan={columns.length} className="px-4 py-12 text-center text-muted-fg">
-									No services match your filters
-								</td>
-							</tr>
+							<div className="rounded-2xl bg-surface border border-border px-8 py-16 text-center text-muted-fg">
+								No services match your filters
+							</div>
 						)}
 						{table.getRowModel().rows.map((row) => (
-							<tr
+							<div
 								key={row.id}
 								onClick={() => setSelected(row.original)}
-								className={`border-b border-border hover:bg-muted/50 transition-colors cursor-pointer ${selected?.id === row.original.id ? 'bg-accent/5' : ''}`}
+								className={`rounded-2xl overflow-hidden flex items-center cursor-pointer transition-colors border ${selected?.id === row.original.id ? 'bg-accent/5 border-accent/20' : 'bg-surface border-border hover:border-muted-fg/20'}`}
 							>
-								{row.getVisibleCells().map((cell) => (
-									<td
-										key={cell.id}
-										className={`px-4 py-3 ${cell.column.id === 'verified' ? 'text-center' : ''}`}
-									>
-										{flexRender(cell.column.columnDef.cell, cell.getContext())}
-									</td>
-								))}
-							</tr>
+								{row.getVisibleCells().map((cell, i) => {
+									const flex = i === 0 ? 'flex-[3]' : 'flex-[2]';
+									return (
+										<div key={cell.id} className={`${flex} py-4 ${i === 0 ? 'pl-6 pr-4' : 'px-6'}`}>
+											{flexRender(cell.column.columnDef.cell, cell.getContext())}
+										</div>
+									);
+								})}
+							</div>
 						))}
-					</tbody>
-				</table>
-			</div>
-		</div>
+					</div>
 
+					{/* Pagination */}
+					<Pagination table={table} pagination={pagination} filtered={filtered} total={data.length} />
+				</div>
+			</div>
 		</div>
 	);
 };

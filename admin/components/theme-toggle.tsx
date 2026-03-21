@@ -24,9 +24,10 @@ const ThemeToggle = () => {
 		<button
 			type="button"
 			onClick={toggle}
-			className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-fg hover:text-foreground hover:bg-muted transition-colors"
+			className="size-8 rounded-lg flex items-center justify-center text-muted-fg hover:text-foreground hover:bg-muted transition-colors"
+			title={dark ? 'Light mode' : 'Dark mode'}
 		>
-			{dark ? 'Light' : 'Dark'}
+			{dark ? '☀' : '☽'}
 		</button>
 	);
 };

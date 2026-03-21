@@ -27,4 +27,13 @@ type S3InfoT = {
 	base_url: string;
 };
 
-export type { CategoryT, S3InfoT, S3ObjectT, ServiceT };
+type LimbusT = {
+	id: string;
+	name: string;
+	domain: string;
+	logo_url: string | null;
+	source: string;
+	created_at: string;
+};
+
+export type { CategoryT, LimbusT, S3InfoT, S3ObjectT, ServiceT };
