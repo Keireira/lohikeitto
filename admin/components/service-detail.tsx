@@ -7,6 +7,7 @@ import { API_URL } from '@/lib/api';
 import { contrastText } from '@/lib/color';
 import { getCachedImage, refetchImage } from '@/lib/image-cache';
 import LogoStudio from '@/components/logo-studio';
+import VectorizeWidget from '@/components/vectorize-widget';
 import Squircle from '@/components/squircle';
 import type { CategoryT, ServiceT } from '@/lib/types';
 
@@ -167,6 +168,7 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 	const [logoOk, setLogoOk] = useState(false);
 	const [logoBlobUrl, setLogoBlobUrl] = useState<string | undefined>(undefined);
 	const [logoStudioOpen, setLogoStudioOpen] = useState(false);
+	const [vectorizeOpen, setVectorizeOpen] = useState(false);
 	const [deleteConfirm, setDeleteConfirm] = useState(false);
 	const [deleteInput, setDeleteInput] = useState('');
 	const [deleting, setDeleting] = useState(false);
@@ -529,6 +531,16 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 							<span className="text-sm flex-1 text-muted-fg">{committedSlug}.webp</span>
 							<span className="text-[10px] text-muted-fg">Logo Studio</span>
 						</button>
+						{logoBlobUrl && (
+							<button
+								type="button"
+								onClick={() => setVectorizeOpen(true)}
+								className="w-full ed-input flex items-center gap-3 cursor-pointer hover:border-accent transition-colors text-left mt-1.5"
+							>
+								<span className="text-sm flex-1 text-muted-fg">Vectorize to SVG</span>
+								<span className="text-[10px] text-muted-fg">Trace</span>
+							</button>
+						)}
 					</Section>
 				)}
 
@@ -743,6 +755,15 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 						setLogoOk(true);
 					}}
 					onClose={() => setLogoStudioOpen(false)}
+				/>
+			)}
+
+			{/* Vectorize */}
+			{vectorizeOpen && logoBlobUrl && (
+				<VectorizeWidget
+					blobUrl={logoBlobUrl}
+					slug={committedSlug || slug}
+					onClose={() => setVectorizeOpen(false)}
 				/>
 			)}
 

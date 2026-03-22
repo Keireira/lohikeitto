@@ -333,7 +333,10 @@ const ServicesTable = ({
 					<div className="flex items-center gap-1.5 flex-wrap">
 						<button
 							type="button"
-							onClick={() => { setSelected(null); setMode('create'); }}
+							onClick={() => {
+								setSelected(null);
+								setMode('create');
+							}}
 							className="rounded-lg bg-accent/10 text-accent px-3.5 py-2 text-sm font-medium hover:bg-accent/20 transition-colors cursor-pointer"
 						>
 							+ New
@@ -346,11 +349,23 @@ const ServicesTable = ({
 							<input
 								type="text"
 								value={searchInput}
-								onChange={(e) => { setSearchInput(e.target.value); setGlobalFilter(e.target.value); }}
+								onChange={(e) => {
+									setSearchInput(e.target.value);
+									setGlobalFilter(e.target.value);
+								}}
 								className="bg-transparent text-sm text-foreground font-medium pl-2 pr-2 py-2 w-36 focus:outline-none focus:w-52 transition-all"
 							/>
 							{searchInput && (
-								<button type="button" onClick={() => { setSearchInput(''); setGlobalFilter(''); }} className="text-xs text-muted-fg/50 hover:text-foreground cursor-pointer pr-1">{'×'}</button>
+								<button
+									type="button"
+									onClick={() => {
+										setSearchInput('');
+										setGlobalFilter('');
+									}}
+									className="text-xs text-muted-fg/50 hover:text-foreground cursor-pointer pr-1"
+								>
+									{'×'}
+								</button>
 							)}
 						</div>
 
@@ -358,7 +373,11 @@ const ServicesTable = ({
 
 						<FilterChip
 							label="Category"
-							value={selectedCategories.size > 0 && selectedCategories.size < categoryNames.length ? `${selectedCategories.size}` : undefined}
+							value={
+								selectedCategories.size > 0 && selectedCategories.size < categoryNames.length
+									? `${selectedCategories.size}`
+									: undefined
+							}
 							active={selectedCategories.size > 0 && selectedCategories.size < categoryNames.length}
 							onClear={() => setColumnFilters([])}
 						>
@@ -379,19 +398,35 @@ const ServicesTable = ({
 							label="Verified"
 							active={showVerified && !showUnverified}
 							onClick={() => {
-								if (showVerified && !showUnverified) { setShowVerified(true); setShowUnverified(true); }
-								else { setShowVerified(true); setShowUnverified(false); }
+								if (showVerified && !showUnverified) {
+									setShowVerified(true);
+									setShowUnverified(true);
+								} else {
+									setShowVerified(true);
+									setShowUnverified(false);
+								}
 							}}
-							onClear={() => { setShowVerified(true); setShowUnverified(true); }}
+							onClear={() => {
+								setShowVerified(true);
+								setShowUnverified(true);
+							}}
 						/>
 						<FilterChip
 							label="Unverified"
 							active={!showVerified && showUnverified}
 							onClick={() => {
-								if (!showVerified && showUnverified) { setShowVerified(true); setShowUnverified(true); }
-								else { setShowVerified(false); setShowUnverified(true); }
+								if (!showVerified && showUnverified) {
+									setShowVerified(true);
+									setShowUnverified(true);
+								} else {
+									setShowVerified(false);
+									setShowUnverified(true);
+								}
 							}}
-							onClear={() => { setShowVerified(true); setShowUnverified(true); }}
+							onClear={() => {
+								setShowVerified(true);
+								setShowUnverified(true);
+							}}
 						/>
 
 						{(searchInput || columnFilters.length > 0 || !showVerified || !showUnverified) && (
@@ -399,7 +434,13 @@ const ServicesTable = ({
 								<div className="w-px h-6 bg-border mx-2" />
 								<button
 									type="button"
-									onClick={() => { setSearchInput(''); setGlobalFilter(''); setColumnFilters([]); setShowVerified(true); setShowUnverified(true); }}
+									onClick={() => {
+										setSearchInput('');
+										setGlobalFilter('');
+										setColumnFilters([]);
+										setShowVerified(true);
+										setShowUnverified(true);
+									}}
 									className="rounded-lg px-3 py-2 text-sm text-muted-fg hover:text-danger hover:bg-danger/5 transition-colors cursor-pointer"
 								>
 									Clear
