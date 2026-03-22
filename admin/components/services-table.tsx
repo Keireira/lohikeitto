@@ -271,6 +271,11 @@ const ServicesTable = ({
 								setSelected(updated);
 							}
 						}}
+						onDelete={(id) => {
+							setData((prev) => prev.filter((s) => s.id !== id));
+							setSelected(null);
+							setMode('idle');
+						}}
 					/>
 					<button
 						type="button"

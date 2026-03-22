@@ -129,6 +129,7 @@ type Props = {
 	prefillSlug?: string;
 	onClose: () => void;
 	onUpdate: (updated: ServiceT) => void;
+	onDelete?: (id: string) => void;
 };
 
 const EMPTY_SERVICE: ServiceT = {
@@ -143,7 +144,7 @@ const EMPTY_SERVICE: ServiceT = {
 	ref_link: null,
 };
 
-const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose, onUpdate }: Props) => {
+const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose, onUpdate, onDelete }: Props) => {
 	const isCreateMode = !serviceProp;
 	const service = serviceProp ?? EMPTY_SERVICE;
 
@@ -166,6 +167,9 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 	const [logoOk, setLogoOk] = useState(false);
 	const [logoBlobUrl, setLogoBlobUrl] = useState<string | undefined>(undefined);
 	const [logoStudioOpen, setLogoStudioOpen] = useState(false);
+	const [deleteConfirm, setDeleteConfirm] = useState(false);
+	const [deleteInput, setDeleteInput] = useState('');
+	const [deleting, setDeleting] = useState(false);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 
 	const proxiedLogo = committedSlug ? `${API_URL}/s3/file/logos/${committedSlug}.webp` : '';
@@ -417,13 +421,12 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 
 				// Rename logo in S3 if slug changed
 				if (slug !== service.slug) {
-					try {
-						await fetch(`${API_URL}/s3/rename`, {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ from: `logos/${service.slug}.webp`, to: `logos/${slug}.webp` })
-						});
-					} catch { /* best-effort */ }
+					const renameRes = await fetch(`${API_URL}/s3/rename`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ from: `logos/${service.slug}.webp`, to: `logos/${slug}.webp` })
+					}).catch(() => null);
+					if (renameRes?.ok) toast.info(`Logo renamed to ${slug}.webp`);
 				}
 
 				const cat = categories.find((c) => c.id === categoryId) ?? null;
@@ -632,6 +635,78 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					>
 						Cancel
 					</button>
+				</div>
+			)}
+
+			{/* Delete */}
+			{!isCreateMode && onDelete && (
+				<div className="px-6 py-3 border-t border-border shrink-0">
+					<button
+						type="button"
+						onClick={() => { setDeleteConfirm(true); setDeleteInput(''); }}
+						className="text-xs text-muted-fg hover:text-danger transition-colors cursor-pointer"
+					>
+						Delete service
+					</button>
+				</div>
+			)}
+
+			{/* Delete confirmation */}
+			{deleteConfirm && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setDeleteConfirm(false)}>
+					<div className="w-96 rounded-2xl bg-surface border border-border shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+						<div className="px-6 pt-5 pb-4">
+							<p className="text-sm font-bold text-foreground">Delete {service.name}?</p>
+							<p className="text-xs text-muted-fg mt-1">This will permanently remove the service and unlink its logo. Type the service name to confirm.</p>
+						</div>
+						<div className="px-6 pb-4">
+							<input
+								type="text"
+								value={deleteInput}
+								onChange={(e) => setDeleteInput(e.target.value)}
+								placeholder={service.name}
+								autoFocus
+								className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-danger/50"
+							/>
+						</div>
+						<div className="px-6 py-3 border-t border-border flex gap-3">
+							<button
+								type="button"
+								disabled={deleteInput !== service.name || deleting}
+								onClick={async () => {
+									setDeleting(true);
+									try {
+										// Move logo to trash
+										await fetch(`${API_URL}/s3/rename`, {
+											method: 'POST',
+											headers: { 'Content-Type': 'application/json' },
+											body: JSON.stringify({ from: `logos/${service.slug}.webp`, to: `logos/.trash/${service.slug}.webp` })
+										}).catch(() => null);
+										// Delete service
+										const res = await fetch(`${API_URL}/services/${service.id}`, { method: 'DELETE' });
+										if (!res.ok) throw new Error(`${res.status}`);
+										toast.success(`${service.name} deleted`);
+										setDeleteConfirm(false);
+										onDelete!(service.id);
+									} catch (e) {
+										toast.error(e instanceof Error ? e.message : 'Delete failed');
+									} finally {
+										setDeleting(false);
+									}
+								}}
+								className="flex-1 rounded-xl bg-danger py-2.5 text-sm font-bold text-white hover:opacity-90 transition-colors cursor-pointer disabled:opacity-30"
+							>
+								{deleting ? 'Deleting...' : 'Delete permanently'}
+							</button>
+							<button
+								type="button"
+								onClick={() => setDeleteConfirm(false)}
+								className="rounded-xl border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
+							>
+								Cancel
+							</button>
+						</div>
+					</div>
 				</div>
 			)}
 

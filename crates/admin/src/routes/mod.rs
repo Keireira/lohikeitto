@@ -16,6 +16,7 @@ pub fn router() -> Router<AdminState> {
         .route("/services", get(services::list))
         .route("/services", post(services::create))
         .route("/services/{id}", put(services::update))
+        .route("/services/{id}", delete(services::delete))
         .route("/categories", get(services::list_categories))
         .route("/categories", post(services::create_category))
         .route("/categories/{id}", put(services::update_category))

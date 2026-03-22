@@ -202,6 +202,19 @@ pub async fn update(
     Ok(Json(serde_json::json!({ "updated": id })))
 }
 
+/// Delete a service.
+pub async fn delete(
+    State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AdminError> {
+    sqlx::query("DELETE FROM services WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(serde_json::json!({ "deleted": id })))
+}
+
 // ── Categories CRUD ───────────────────────────────
 
 #[derive(Debug, Deserialize)]
