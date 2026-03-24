@@ -14,6 +14,25 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 use crate::app::AdminState;
 use crate::error::AdminError;
 
+/// Parse S3/RFC3339 date string into zip::DateTime.
+fn parse_s3_date(s: &str) -> zip::DateTime {
+    use chrono::{Datelike, Timelike};
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .and_then(|dt| {
+            let u = dt.naive_utc();
+            zip::DateTime::from_date_and_time(
+                u.year() as u16,
+                u.month() as u8,
+                u.day() as u8,
+                u.hour() as u8,
+                u.minute() as u8,
+                u.second() as u8,
+            ).ok()
+        })
+        .unwrap_or_default()
+}
+
 #[derive(Debug, Serialize)]
 pub struct S3Object {
     pub key: String,
@@ -78,18 +97,18 @@ pub async fn archive_stream(
         .await
         .map_err(|e| AdminError::Internal(e.to_string()))?;
 
-    let keys: Vec<String> = results
+    let entries: Vec<(String, String)> = results
         .into_iter()
         .flat_map(|r| r.contents)
         .filter(|o| !o.key.ends_with('/') && o.size > 0)
-        .map(|o| o.key)
+        .map(|o| (o.key, o.last_modified))
         .collect();
 
-    if keys.is_empty() {
+    if entries.is_empty() {
         return Err(AdminError::NotFound);
     }
 
-    let total = keys.len();
+    let total = entries.len();
     let bucket = state.bucket.clone();
     let cache = state.archive_cache.clone();
     let prefix_clone = prefix.clone();
@@ -99,12 +118,15 @@ pub async fn archive_stream(
 
         let mut buf = Vec::new();
         let mut zip = ZipWriter::new(std::io::Cursor::new(&mut buf));
-        let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-        for (i, key) in keys.iter().enumerate() {
+        for (i, (key, modified)) in entries.iter().enumerate() {
             yield Ok(Event::default()
                 .event("fetching")
                 .data(format!("{}/{}", i + 1, total)));
+
+            let options = SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated)
+                .last_modified_time(parse_s3_date(modified));
 
             match bucket.get_object(key).await {
                 Ok(response) => {
@@ -353,7 +375,6 @@ pub async fn archive_keys_stream(
 
         let mut buf = Vec::new();
         let mut zip = ZipWriter::new(std::io::Cursor::new(&mut buf));
-        let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         for (i, key) in keys.iter().enumerate() {
             yield Ok(Event::default()
@@ -362,7 +383,12 @@ pub async fn archive_keys_stream(
 
             match bucket.get_object(key).await {
                 Ok(response) => {
-                    // Preserve directory structure in zip
+                    let modified = response.headers().get("last-modified")
+                        .map(|v| parse_s3_date(v))
+                        .unwrap_or_default();
+                    let options = SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Deflated)
+                        .last_modified_time(modified);
                     if let Err(e) = zip.start_file(key.as_str(), options) {
                         yield Ok(Event::default().event("error").data(e.to_string()));
                         return;
