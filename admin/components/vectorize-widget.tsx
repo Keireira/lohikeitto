@@ -145,7 +145,7 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 							<p className="text-[11px] font-bold text-accent uppercase tracking-widest">Vectorize</p>
 							<div className="flex items-center justify-between mt-1">
 								<h3 className="text-lg font-bold text-foreground">Settings</h3>
-								<button type="button" onClick={onClose} className="text-muted-fg hover:text-foreground cursor-pointer text-lg">{'×'}</button>
+								<button type="button" onClick={onClose} className="size-8 rounded-lg flex items-center justify-center text-muted-fg hover:text-foreground hover:bg-muted cursor-pointer transition-colors text-xl">{'×'}</button>
 							</div>
 						</div>
 

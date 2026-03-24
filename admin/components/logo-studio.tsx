@@ -180,7 +180,7 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 							<p className="text-[11px] font-bold text-accent uppercase tracking-widest">Logo Studio</p>
 							<div className="flex items-center justify-between mt-1">
 								<h3 className="text-lg font-bold text-foreground">Select Logo</h3>
-								<button type="button" onClick={onClose} className="text-muted-fg hover:text-foreground transition-colors cursor-pointer text-lg">{'×'}</button>
+								<button type="button" onClick={onClose} className="size-8 rounded-lg flex items-center justify-center text-muted-fg hover:text-foreground hover:bg-muted cursor-pointer transition-colors text-xl">{'×'}</button>
 							</div>
 						</div>
 
