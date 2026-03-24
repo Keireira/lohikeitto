@@ -143,16 +143,23 @@ const ServicesTable = ({
 	const searchParams = useSearchParams();
 
 	const [data, setData] = useState(initialData);
-	const [searchInput, setSearchInput] = useState('');
-	const [globalFilter, setGlobalFilter] = useDebouncedState('', { wait: 200 });
-	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-	const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }]);
+	const [searchInput, setSearchInput] = useState(() => searchParams.get('q') ?? '');
+	const [globalFilter, setGlobalFilter] = useDebouncedState(searchParams.get('q') ?? '', { wait: 200 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
+		const cats = searchParams.get('categories');
+		return cats ? [{ id: 'category', value: cats.split(',') }] : [];
+	});
+	const [sorting, setSorting] = useState<SortingState>(() => {
+		const sort = searchParams.get('sort');
+		const dir = searchParams.get('dir');
+		return sort ? [{ id: sort, desc: dir === 'desc' }] : [{ id: 'name', desc: false }];
+	});
 	const [selected, setSelected] = useState<ServiceT | null>(() => {
 		const editId = searchParams.get('mode') === 'edit' ? searchParams.get('id') : null;
 		return editId ? (initialData.find((s) => s.id === editId) ?? null) : null;
 	});
-	const [showVerified, setShowVerified] = useState(true);
-	const [showUnverified, setShowUnverified] = useState(true);
+	const [showVerified, setShowVerified] = useState(() => searchParams.get('status') !== 'unverified');
+	const [showUnverified, setShowUnverified] = useState(() => searchParams.get('status') !== 'verified');
 	const [pagination, setPagination] = useState(() => ({
 		pageIndex: Math.max(0, Number(searchParams.get('page') ?? 1) - 1),
 		pageSize: Number(searchParams.get('per_page')) || 50
@@ -171,18 +178,20 @@ const ServicesTable = ({
 	// Sync state → URL (without triggering Next.js navigation)
 	useEffect(() => {
 		const params = new URLSearchParams();
-		if (mode === 'edit' && selected) {
-			params.set('mode', 'edit');
-			params.set('id', selected.id);
-		} else if (mode === 'create') {
-			params.set('mode', 'create');
-			if (prefillSlug) params.set('slug', prefillSlug);
-		}
+		if (mode === 'edit' && selected) { params.set('mode', 'edit'); params.set('id', selected.id); }
+		else if (mode === 'create') { params.set('mode', 'create'); if (prefillSlug) params.set('slug', prefillSlug); }
 		if (pagination.pageIndex > 0) params.set('page', String(pagination.pageIndex + 1));
 		if (pagination.pageSize !== 50) params.set('per_page', String(pagination.pageSize));
+		if (searchInput) params.set('q', searchInput);
+		const cats = columnFilters.find((f) => f.id === 'category')?.value as string[] | undefined;
+		if (cats?.length) params.set('categories', cats.join(','));
+		if (showVerified && !showUnverified) params.set('status', 'verified');
+		else if (!showVerified && showUnverified) params.set('status', 'unverified');
+		const s = sorting[0];
+		if (s && (s.id !== 'name' || s.desc)) { params.set('sort', s.id); params.set('dir', s.desc ? 'desc' : 'asc'); }
 		const qs = params.toString();
 		window.history.replaceState(null, '', qs ? `/?${qs}` : '/');
-	}, [selected, pagination, mode, prefillSlug]);
+	}, [selected, pagination, mode, prefillSlug, searchInput, columnFilters, showVerified, showUnverified, sorting]);
 
 	const visibleData = useMemo(
 		() => (showVerified && showUnverified ? data : data.filter((s) => (s.verified ? showVerified : showUnverified))),
