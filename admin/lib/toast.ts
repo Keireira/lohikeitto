@@ -21,13 +21,13 @@ const useToastStore = create<ToastStore>((set) => ({
 		set((s) => ({ toasts: [...s.toasts, { id, message, type }] }));
 		setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 4000);
 	},
-	remove: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+	remove: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
 }));
 
 const toast = {
 	error: (msg: string) => useToastStore.getState().add(msg, 'error'),
 	success: (msg: string) => useToastStore.getState().add(msg, 'success'),
-	info: (msg: string) => useToastStore.getState().add(msg, 'info'),
+	info: (msg: string) => useToastStore.getState().add(msg, 'info')
 };
 
-export { useToastStore, toast };
+export { toast, useToastStore };

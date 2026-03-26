@@ -1,37 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebouncedState } from '@tanstack/react-pacer';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import type { MenuItem } from '@/components/context-menu';
 import ContextMenu from '@/components/context-menu';
 import DirPicker from '@/components/dir-picker';
-import type { MenuItem } from '@/components/context-menu';
-import useGlobalDownload from '@/lib/use-download';
-import { s3ArchiveUrl, s3FileUrl } from '@/lib/api';
-import type { S3ObjectT, ServiceT } from '@/lib/types';
+import { API_URL, s3ArchiveUrl, s3FileUrl } from '@/lib/api';
+import { formatDate, formatSize, MONTHS } from '@/lib/format';
 import { toast } from '@/lib/toast';
-import formatSize from '@/lib/format-size';
-
-// ── Utils ──────────────────────────────────────────
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const formatDate = (iso: string | null): string => {
-	if (!iso) return '';
-	const d = new Date(iso);
-	const day = String(d.getDate()).padStart(2, '0');
-	const mon = MONTHS[d.getMonth()];
-	const year = d.getFullYear();
-	const time = d.toTimeString().slice(0, 8);
-	return `${day} ${mon} ${year} ${time}`;
-};
+import type { S3ObjectT, ServiceT } from '@/lib/types';
+import useGlobalDownload from '@/lib/use-download';
 
 const IMAGE_EXTS = new Set(['webp', 'png', 'jpg', 'jpeg', 'svg', 'gif', 'ico']);
 const isImage = (name: string): boolean => IMAGE_EXTS.has(name.split('.').pop()?.toLowerCase() ?? '');
 
-const API_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
-
-// ── Image cache — IndexedDB for persistence across reloads ──
+// Image cache -- IndexedDB for persistence across reloads
 
 const DB_NAME = 's3-thumb-cache';
 const STORE_NAME = 'blobs';
@@ -103,149 +87,145 @@ const clearImageCache = async () => {
 	}
 };
 
-// ── Types ──────────────────────────────────────────
-
 type Entry = { name: string; isDir: boolean; size: number; fullKey: string; lastModified: string | null };
 type SortKey = 'name' | 'size' | 'lastModified';
 type SortDir = 'asc' | 'desc';
 type PreviewData = { src: string; name: string; size: number; lastModified: string | null };
 
-// ── Directory hook ─────────────────────────────────
+const computeDirectory = (
+	objects: S3ObjectT[],
+	currentPath: string,
+	search: string,
+	sortKey: SortKey,
+	sortDir: SortDir
+) => {
+	const dirs = new Map<string, number>();
+	const files: Entry[] = [];
 
-const useDirectory = (objects: S3ObjectT[], currentPath: string, search: string, sortKey: SortKey, sortDir: SortDir) =>
-	useMemo(() => {
-		const dirs = new Map<string, number>();
-		const files: Entry[] = [];
+	for (const obj of objects) {
+		if (!obj.key.startsWith(currentPath)) continue;
 
+		const relative = obj.key.slice(currentPath.length);
+		if (!relative) continue;
+
+		// Explicit directory placeholder (key ends with /, size 0)
+		if (obj.key.endsWith('/') && obj.size === 0) {
+			const dirName = relative.replace(/\/$/, '');
+			if (dirName && !dirName.includes('/')) {
+				dirs.set(dirName, dirs.get(dirName) ?? 0);
+			}
+			continue;
+		}
+
+		const slashIdx = relative.indexOf('/');
+
+		if (slashIdx === -1) {
+			files.push({ name: relative, isDir: false, size: obj.size, fullKey: obj.key, lastModified: obj.last_modified });
+		} else {
+			const dirName = relative.slice(0, slashIdx);
+			dirs.set(dirName, (dirs.get(dirName) ?? 0) + obj.size);
+		}
+	}
+
+	const dirEntries: Entry[] = [...dirs.entries()].map(([name, size]) => ({
+		name,
+		isDir: true,
+		size,
+		fullKey: `${currentPath}${name}/`,
+		lastModified: null
+	}));
+
+	let all = [...dirEntries, ...files];
+
+	// Search filter -- also search recursively in subdirectories
+	if (search) {
+		const q = search.toLowerCase();
+		// Add matching files from all subdirectories
+		const deepMatches: Entry[] = [];
 		for (const obj of objects) {
+			if (obj.key.endsWith('/') || obj.size === 0) continue;
 			if (!obj.key.startsWith(currentPath)) continue;
-
 			const relative = obj.key.slice(currentPath.length);
-			if (!relative) continue;
-
-			// Explicit directory placeholder (key ends with /, size 0)
-			if (obj.key.endsWith('/') && obj.size === 0) {
-				const dirName = relative.replace(/\/$/, '');
-				if (dirName && !dirName.includes('/')) {
-					dirs.set(dirName, dirs.get(dirName) ?? 0);
-				}
-				continue;
-			}
-
-			const slashIdx = relative.indexOf('/');
-
-			if (slashIdx === -1) {
-				files.push({ name: relative, isDir: false, size: obj.size, fullKey: obj.key, lastModified: obj.last_modified });
-			} else {
-				const dirName = relative.slice(0, slashIdx);
-				dirs.set(dirName, (dirs.get(dirName) ?? 0) + obj.size);
+			if (!relative.includes('/')) continue; // already in `files`
+			const filename = relative.split('/').pop() ?? '';
+			if (filename.toLowerCase().includes(q)) {
+				deepMatches.push({
+					name: relative,
+					isDir: false,
+					size: obj.size,
+					fullKey: obj.key,
+					lastModified: obj.last_modified
+				});
 			}
 		}
+		all = [...all.filter((e) => e.name.toLowerCase().includes(q)), ...deepMatches];
+	}
 
-		const dirEntries: Entry[] = [...dirs.entries()].map(([name, size]) => ({
-			name,
-			isDir: true,
-			size,
-			fullKey: `${currentPath}${name}/`,
-			lastModified: null
-		}));
-
-		let all = [...dirEntries, ...files];
-
-		// Search filter — also search recursively in subdirectories
-		if (search) {
-			const q = search.toLowerCase();
-			// Add matching files from all subdirectories
-			const deepMatches: Entry[] = [];
-			for (const obj of objects) {
-				if (obj.key.endsWith('/') || obj.size === 0) continue;
-				if (!obj.key.startsWith(currentPath)) continue;
-				const relative = obj.key.slice(currentPath.length);
-				if (!relative.includes('/')) continue; // already in `files`
-				const filename = relative.split('/').pop() ?? '';
-				if (filename.toLowerCase().includes(q)) {
-					deepMatches.push({
-						name: relative,
-						isDir: false,
-						size: obj.size,
-						fullKey: obj.key,
-						lastModified: obj.last_modified
-					});
-				}
+	// Sort
+	const mul = sortDir === 'asc' ? 1 : -1;
+	all.sort((a, b) => {
+		// Dirs always first
+		if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+		switch (sortKey) {
+			case 'size':
+				return (a.size - b.size) * mul;
+			case 'lastModified': {
+				const ta = a.lastModified ?? '';
+				const tb = b.lastModified ?? '';
+				return ta.localeCompare(tb) * mul;
 			}
-			all = [...all.filter((e) => e.name.toLowerCase().includes(q)), ...deepMatches];
+			default:
+				return a.name.localeCompare(b.name) * mul;
 		}
+	});
 
-		// Sort
-		const mul = sortDir === 'asc' ? 1 : -1;
-		all.sort((a, b) => {
-			// Dirs always first
-			if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-			switch (sortKey) {
-				case 'size':
-					return (a.size - b.size) * mul;
-				case 'lastModified': {
-					const ta = a.lastModified ?? '';
-					const tb = b.lastModified ?? '';
-					return ta.localeCompare(tb) * mul;
-				}
-				default:
-					return a.name.localeCompare(b.name) * mul;
-			}
-		});
-
-		return all;
-	}, [objects, currentPath, search, sortKey, sortDir]);
-
-// ── Selection hook ─────────────────────────────────
+	return all;
+};
 
 const useSelection = (entries: Entry[]) => {
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const lastClickRef = useRef<number | null>(null);
 
-	const toggle = useCallback(
-		(idx: number, e: React.MouseEvent, fromCheckbox = false) => {
-			const key = entries[idx].fullKey;
+	const toggle = (idx: number, e: React.MouseEvent, fromCheckbox = false) => {
+		const key = entries[idx].fullKey;
 
-			if (e.shiftKey && lastClickRef.current !== null) {
-				// Range select
-				const from = Math.min(lastClickRef.current, idx);
-				const to = Math.max(lastClickRef.current, idx);
-				setSelected((prev) => {
-					const next = new Set(prev);
-					for (let i = from; i <= to; i++) {
-						next.add(entries[i].fullKey);
-					}
-					return next;
-				});
-			} else if (fromCheckbox || e.metaKey || e.ctrlKey) {
-				// Additive toggle
-				setSelected((prev) => {
-					const next = new Set(prev);
-					if (next.has(key)) {
-						next.delete(key);
-					} else {
-						next.add(key);
-					}
-					return next;
-				});
-			} else {
-				// Single select
-				setSelected(new Set([key]));
-			}
-			lastClickRef.current = idx;
-		},
-		[entries]
-	);
+		if (e.shiftKey && lastClickRef.current !== null) {
+			// Range select
+			const from = Math.min(lastClickRef.current, idx);
+			const to = Math.max(lastClickRef.current, idx);
+			setSelected((prev) => {
+				const next = new Set(prev);
+				for (let i = from; i <= to; i++) {
+					next.add(entries[i].fullKey);
+				}
+				return next;
+			});
+		} else if (fromCheckbox || e.metaKey || e.ctrlKey) {
+			// Additive toggle
+			setSelected((prev) => {
+				const next = new Set(prev);
+				if (next.has(key)) {
+					next.delete(key);
+				} else {
+					next.add(key);
+				}
+				return next;
+			});
+		} else {
+			// Single select
+			setSelected(new Set([key]));
+		}
+		lastClickRef.current = idx;
+	};
 
-	const selectAll = useCallback(() => {
+	const selectAll = () => {
 		setSelected(new Set(entries.map((e) => e.fullKey)));
-	}, [entries]);
+	};
 
-	const clear = useCallback(() => {
+	const clear = () => {
 		setSelected(new Set());
 		lastClickRef.current = null;
-	}, []);
+	};
 
 	// Clear selection when entries change (navigation)
 	useEffect(() => clear(), [entries, clear]);
@@ -262,8 +242,6 @@ const useSelection = (entries: Entry[]) => {
 
 	return { selected, toggle, selectAll, clear };
 };
-
-// ── Atoms ──────────────────────────────────────────
 
 const Thumbnail = ({ fileKey }: { fileKey: string }) => {
 	const [url, setUrl] = useState<string | null>(null);
@@ -305,8 +283,6 @@ const SortHeader = ({
 		{current !== field && <span className="opacity-30">{'↕'}</span>}
 	</button>
 );
-
-// ── Preview modal ──────────────────────────────────
 
 const ImagePreview = ({
 	data,
@@ -406,8 +382,6 @@ const ImagePreview = ({
 	);
 };
 
-// ── Main component ─────────────────────────────────
-
 const S3Browser = ({ data: initialData, services }: { data: S3ObjectT[]; services: ServiceT[] }) => {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -441,29 +415,24 @@ const S3Browser = ({ data: initialData, services }: { data: S3ObjectT[]; service
 		const qs = params.toString();
 		router.replace(qs ? `/s3?${qs}` : '/s3', { scroll: false });
 	}, [path, router]);
-	const entries = useDirectory(data, currentPath, search, sortKey, sortDir);
+	const entries = computeDirectory(data, currentPath, search, sortKey, sortDir);
 	const { selected, toggle, selectAll, clear } = useSelection(entries);
 
-	const selectedEntries = useMemo(() => entries.filter((e) => selected.has(e.fullKey)), [entries, selected]);
-	const selectedSize = useMemo(() => selectedEntries.reduce((a, e) => a + e.size, 0), [selectedEntries]);
+	const selectedEntries = entries.filter((e) => selected.has(e.fullKey));
+	const selectedSize = selectedEntries.reduce((a, e) => a + e.size, 0);
 
 	// Logo ↔ Service linking
 	const isLogosDir = currentPath === 'logos/';
-	const slugToService = useMemo(() => {
-		const map = new Map<string, ServiceT>();
-		for (const s of services) map.set(s.slug, s);
-		return map;
-	}, [services]);
-	const unlinkedLogos = useMemo(() => {
-		if (!isLogosDir) return [];
-		return entries.filter((e) => !e.isDir && !slugToService.has(e.name.replace(/\.[^.]+$/, '')));
-	}, [isLogosDir, entries, slugToService]);
+	const slugToService = new Map<string, ServiceT>();
+	for (const s of services) slugToService.set(s.slug, s);
+	const unlinkedLogos = isLogosDir
+		? entries.filter((e) => !e.isDir && !slugToService.has(e.name.replace(/\.[^.]+$/, '')))
+		: [];
 
 	// Image preview navigation
-	const imageEntries = useMemo(
-		() => entries.map((e, i) => ({ entry: e, idx: i })).filter(({ entry }) => !entry.isDir && isImage(entry.name)),
-		[entries]
-	);
+	const imageEntries = entries
+		.map((e, i) => ({ entry: e, idx: i }))
+		.filter(({ entry }) => !entry.isDir && isImage(entry.name));
 	const currentImagePos = previewIdx !== null ? imageEntries.findIndex(({ idx }) => idx === previewIdx) : -1;
 	const previewData: PreviewData | null =
 		previewIdx !== null && entries[previewIdx]
@@ -474,12 +443,12 @@ const S3Browser = ({ data: initialData, services }: { data: S3ObjectT[]; service
 					lastModified: entries[previewIdx].lastModified
 				}
 			: null;
-	const goPrevImage = useCallback(() => {
+	const goPrevImage = () => {
 		if (currentImagePos > 0) setPreviewIdx(imageEntries[currentImagePos - 1].idx);
-	}, [currentImagePos, imageEntries]);
-	const goNextImage = useCallback(() => {
+	};
+	const goNextImage = () => {
 		if (currentImagePos < imageEntries.length - 1) setPreviewIdx(imageEntries[currentImagePos + 1].idx);
-	}, [currentImagePos, imageEntries]);
+	};
 
 	const totalFiles = data.filter((o) => !o.key.endsWith('/') && o.size > 0).length;
 	const totalBytes = data.reduce((a, o) => a + o.size, 0);

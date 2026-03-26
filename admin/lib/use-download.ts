@@ -1,46 +1,28 @@
 'use client';
 
-import { useCallback } from 'react';
+import { API_URL } from '@/lib/api';
 import useDownloadStore from '@/lib/download-store';
-
-const formatEta = (seconds: number): string => {
-	if (!Number.isFinite(seconds) || seconds < 0) return '';
-	if (seconds < 1) return '< 1s';
-	if (seconds < 60) return `~${Math.ceil(seconds)}s`;
-	return `~${Math.floor(seconds / 60)}m ${Math.ceil(seconds % 60)}s`;
-};
-
-const formatBytes = (bytes: number): string => {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
-const triggerSave = (blob: Blob, filename: string) => {
-	const a = document.createElement('a');
-	a.href = URL.createObjectURL(blob);
-	a.download = filename;
-	a.click();
-	URL.revokeObjectURL(a.href);
-};
+import { formatEta, formatSize, triggerSave } from '@/lib/format';
 
 const useGlobalDownload = () => {
 	const startJob = useDownloadStore((s) => s.startJob);
 	const updateJob = useDownloadStore((s) => s.updateJob);
 
-	const start = useCallback(async (url: string, filename: string) => {
+	const start = async (url: string, filename: string) => {
 		const id = startJob(filename);
 		const controller = new AbortController();
-
-		// Register abort function
-		updateJob(id, { abort: () => { controller.abort(); } });
+		updateJob(id, {
+			abort: () => {
+				controller.abort();
+			}
+		});
 
 		try {
 			const sseUrl = url;
 			const eventSource = new EventSource(sseUrl);
-
-			// Wire abort to close SSE
-			controller.signal.addEventListener('abort', () => { eventSource.close(); });
+			controller.signal.addEventListener('abort', () => {
+				eventSource.close();
+			});
 
 			const token = await new Promise<string>((resolve, reject) => {
 				eventSource.addEventListener('fetching', (e) => {
@@ -66,7 +48,6 @@ const useGlobalDownload = () => {
 
 			updateJob(id, { phase: 'downloading', downloadDetail: 'Starting...' });
 
-			const API_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
 			const prefix = new URL(sseUrl).searchParams.get('prefix') ?? '';
 			const downloadUrl = `${API_URL}/s3/archive/${token}${prefix ? `?prefix=${encodeURIComponent(prefix)}` : ''}`;
 			const res = await fetch(downloadUrl, { signal: controller.signal });
@@ -79,7 +60,7 @@ const useGlobalDownload = () => {
 			if (!reader || contentLength === 0) {
 				const blob = await res.blob();
 				triggerSave(blob, filename);
-				updateJob(id, { phase: 'done', downloadPct: 100, downloadDetail: formatBytes(blob.size) });
+				updateJob(id, { phase: 'done', downloadPct: 100, downloadDetail: formatSize(blob.size) });
 				return;
 			}
 
@@ -100,21 +81,20 @@ const useGlobalDownload = () => {
 
 				updateJob(id, {
 					downloadPct: pct,
-					downloadDetail: `${pct}% — ${formatBytes(received)} / ${formatBytes(contentLength)} — ${formatEta(eta)}`
+					downloadDetail: `${pct}% — ${formatSize(received)} / ${formatSize(contentLength)} — ${formatEta(eta)}`
 				});
 			}
 
 			triggerSave(new Blob(chunks as BlobPart[]), filename);
-			updateJob(id, { phase: 'done', downloadPct: 100, downloadDetail: formatBytes(received) });
+			updateJob(id, { phase: 'done', downloadPct: 100, downloadDetail: formatSize(received) });
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : 'Failed';
 			const current = useDownloadStore.getState().jobs.get(id);
 			updateJob(id, { phase: 'error', errorAt: current?.phase ?? 'fetching', error: msg });
 		}
-	}, [startJob, updateJob]);
+	};
 
-	// Simple file download (no SSE)
-	const startFile = useCallback(async (url: string, filename: string) => {
+	const startFile = async (url: string, filename: string) => {
 		const id = startJob(filename);
 		const controller = new AbortController();
 		updateJob(id, { abort: () => controller.abort() });
@@ -125,23 +105,19 @@ const useGlobalDownload = () => {
 			if (!res.ok) throw new Error(`${res.status}`);
 			const blob = await res.blob();
 			triggerSave(blob, filename);
-			updateJob(id, { phase: 'done', downloadPct: 100, downloadDetail: formatBytes(blob.size) });
+			updateJob(id, { phase: 'done', downloadPct: 100, downloadDetail: formatSize(blob.size) });
 		} catch (e) {
 			updateJob(id, { phase: 'error', errorAt: 'downloading', error: e instanceof Error ? e.message : 'Failed' });
 		}
-	}, [startJob, updateJob]);
+	};
 
-	// Archive specific keys (POST SSE)
-	const startKeys = useCallback(async (keys: string[], filename: string) => {
+	const startKeys = async (keys: string[], filename: string) => {
 		const id = startJob(filename);
 		const controller = new AbortController();
 		updateJob(id, { abort: () => controller.abort() });
 
-		const API = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
-
 		try {
-			// POST to get SSE stream
-			const sseRes = await fetch(`${API}/s3/archive-keys`, {
+			const sseRes = await fetch(`${API_URL}/s3/archive-keys`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(keys),
@@ -187,21 +163,20 @@ const useGlobalDownload = () => {
 
 			if (!token) throw new Error('No download token received');
 
-			// Download the archive
 			updateJob(id, { phase: 'downloading', downloadDetail: 'Starting...' });
-			const dlRes = await fetch(`${API}/s3/archive/${token}`, { signal: controller.signal });
+			const dlRes = await fetch(`${API_URL}/s3/archive/${token}`, { signal: controller.signal });
 			if (!dlRes.ok) throw new Error(`Download: ${dlRes.status}`);
 
 			const blob = await dlRes.blob();
 			triggerSave(blob, filename);
-			updateJob(id, { phase: 'done', downloadPct: 100, downloadDetail: formatBytes(blob.size) });
+			updateJob(id, { phase: 'done', downloadPct: 100, downloadDetail: formatSize(blob.size) });
 		} catch (e) {
 			if (controller.signal.aborted) return;
 			const msg = e instanceof Error ? e.message : 'Failed';
 			const current = useDownloadStore.getState().jobs.get(id);
 			updateJob(id, { phase: 'error', errorAt: current?.phase ?? 'fetching', error: msg });
 		}
-	}, [startJob, updateJob]);
+	};
 
 	return { start, startFile, startKeys };
 };

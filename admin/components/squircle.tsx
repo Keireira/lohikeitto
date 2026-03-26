@@ -26,7 +26,7 @@ const Squircle = ({ size, color, src, fallback, className, onClick, style }: Squ
 				height: size,
 				clipPath: squirclePath(size),
 				backgroundColor: color ?? '#888',
-				...style,
+				...style
 			}}
 			onClick={onClick}
 		>

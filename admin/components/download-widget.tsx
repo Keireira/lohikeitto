@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import useDownloadStore from '@/lib/download-store';
 import type { DownloadJob } from '@/lib/download-store';
+import useDownloadStore from '@/lib/download-store';
 
 const PhaseIcon = ({ phase, errorAt }: { phase: string; errorAt: string | null }) => {
 	if (errorAt) return <span className="text-danger">{'✕'}</span>;

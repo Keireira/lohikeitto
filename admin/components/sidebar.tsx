@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import Squircle from '@/components/squircle';
 
 const links = [
@@ -20,22 +20,28 @@ const Sidebar = () => {
 	const [s3Info, setS3Info] = useState('R2');
 
 	useEffect(() => {
-		setDbHost(localStorage.getItem('admin_db_host') ?? 'localhost');
-		setS3Info(localStorage.getItem('admin_s3_info') ?? 'R2');
-		const interval = setInterval(() => {
-			setDbHost(localStorage.getItem('admin_db_host') ?? 'localhost');
-			setS3Info(localStorage.getItem('admin_s3_info') ?? 'R2');
-		}, 5000);
+		const sync = () => {
+			setDbHost((prev) => {
+				const next = localStorage.getItem('admin_db_host') ?? 'localhost';
+				return prev !== next ? next : prev;
+			});
+			setS3Info((prev) => {
+				const next = localStorage.getItem('admin_s3_info') ?? 'R2';
+				return prev !== next ? next : prev;
+			});
+		};
+		sync();
+		const interval = setInterval(sync, 5000);
 		return () => clearInterval(interval);
 	}, []);
 
 	return (
 		<>
-			{expanded && (
-				<div className="fixed inset-0 z-[25]" onClick={() => setExpanded(false)} />
-			)}
+			{expanded && <div className="fixed inset-0 z-[25]" onClick={() => setExpanded(false)} />}
 
-			<aside className={`fixed left-0 top-0 bottom-0 bg-sidebar flex flex-col border-r border-border z-[25] transition-all duration-200 overflow-hidden ${expanded ? 'w-56' : 'w-16'}`}>
+			<aside
+				className={`fixed left-0 top-0 bottom-0 bg-sidebar flex flex-col border-r border-border z-[25] transition-all duration-200 overflow-hidden ${expanded ? 'w-56' : 'w-16'}`}
+			>
 				{/* Header */}
 				<div className={`flex items-center h-16 shrink-0 ${expanded ? 'px-4 gap-3' : 'justify-center'}`}>
 					<button
@@ -71,7 +77,12 @@ const Sidebar = () => {
 										: 'text-muted-fg hover:text-foreground hover:bg-muted'
 								}`}
 							>
-								{active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" style={{ marginLeft: expanded ? -12 : -13 }} />}
+								{active && (
+									<span
+										className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent"
+										style={{ marginLeft: expanded ? -12 : -13 }}
+									/>
+								)}
 								<span className="text-lg shrink-0">{link.icon}</span>
 								{expanded && <span className="text-[13px] truncate">{link.label}</span>}
 							</Link>
@@ -91,7 +102,9 @@ const Sidebar = () => {
 							</p>
 						</div>
 					)}
-					<div className={`flex items-center gap-3 rounded-xl ${expanded ? 'px-2 py-2 bg-muted/30' : 'justify-center'}`}>
+					<div
+						className={`flex items-center gap-3 rounded-xl ${expanded ? 'px-2 py-2 bg-muted/30' : 'justify-center'}`}
+					>
 						<Squircle size={expanded ? 32 : 28} src="/avatar_stub.jpeg" color="#888" />
 						{expanded && (
 							<div className="min-w-0">

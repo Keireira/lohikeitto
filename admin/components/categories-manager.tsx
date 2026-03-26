@@ -1,12 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { API_URL } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
 import ServiceIcon from '@/components/service-icon';
+import { API_URL } from '@/lib/api';
 import { toast } from '@/lib/toast';
 import type { CategoryT, ServiceT } from '@/lib/types';
-
-// ── Dropdown menu ──
 
 const ActionMenu = ({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) => {
 	const [open, setOpen] = useState(false);
@@ -61,8 +59,6 @@ const ActionMenu = ({ onRename, onDelete }: { onRename: () => void; onDelete: ()
 	);
 };
 
-// ── Main ──
-
 const CategoriesManager = ({
 	categories: initialCategories,
 	services: initialServices
@@ -79,7 +75,7 @@ const CategoriesManager = ({
 	const [addingNew, setAddingNew] = useState(false);
 	const [saving, setSaving] = useState(false);
 
-	const servicesByCategory = useMemo(() => {
+	const servicesByCategory = (() => {
 		const map = new Map<string, ServiceT[]>();
 		for (const s of services) {
 			if (s.category) {
@@ -89,9 +85,9 @@ const CategoriesManager = ({
 			}
 		}
 		return map;
-	}, [services]);
+	})();
 
-	const uncategorized = useMemo(() => services.filter((s) => !s.category), [services]);
+	const uncategorized = services.filter((s) => !s.category);
 	const selectedCat = categories.find((c) => c.id === selectedId) ?? null;
 	const selectedServices =
 		selectedId === '__uncategorized' ? uncategorized : selectedId ? (servicesByCategory.get(selectedId) ?? []) : [];

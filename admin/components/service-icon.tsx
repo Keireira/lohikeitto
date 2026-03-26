@@ -26,7 +26,10 @@ const ServiceIcon = ({ src, name, color, size = 40 }: { src: string; name: strin
 
 	useEffect(() => {
 		// If cache has it, use it
-		if (cached) { setBlob(cached); return; }
+		if (cached) {
+			setBlob(cached);
+			return;
+		}
 		if (!slug) return;
 
 		let cancelled = false;
@@ -39,7 +42,9 @@ const ServiceIcon = ({ src, name, color, size = 40 }: { src: string; name: strin
 				setCache(slug, url);
 			})
 			.catch(() => {});
-		return () => { cancelled = true; };
+		return () => {
+			cancelled = true;
+		};
 	}, [slug, cached]);
 
 	return (

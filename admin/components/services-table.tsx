@@ -1,30 +1,27 @@
 'use client';
 
+import { useDebouncedState } from '@tanstack/react-pacer';
 import {
 	type ColumnDef,
 	type ColumnFiltersState,
-	type SortingState,
 	flexRender,
 	getCoreRowModel,
 	getFilteredRowModel,
 	getPaginationRowModel,
 	getSortedRowModel,
+	type SortingState,
 	useReactTable
 } from '@tanstack/react-table';
-import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useDebouncedState } from '@tanstack/react-pacer';
+import { useEffect, useRef, useState } from 'react';
 
-import { FilterChip, CheckList } from '@/components/filter-bar';
+import { CheckList, FilterChip } from '@/components/filter-bar';
 import Pagination, { QuickNav } from '@/components/pagination/pagination';
 import ServiceEditor from '@/components/service-detail';
 import ServiceIcon from '@/components/service-icon';
+import { API_URL } from '@/lib/api';
 import { contrastText } from '@/lib/color';
 import type { CategoryT, ServiceT } from '@/lib/types';
-
-// ── Atoms ──────────────────────────────────────────
-
-const API = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
 
 const SortHeader = ({
 	label,
@@ -50,8 +47,6 @@ const SortHeader = ({
 		)}
 	</button>
 );
-
-// ── Columns ────────────────────────────────────────
 
 const columns: ColumnDef<ServiceT>[] = [
 	{
@@ -129,8 +124,6 @@ const columns: ColumnDef<ServiceT>[] = [
 	}
 ];
 
-// ── Table ──────────────────────────────────────────
-
 const ServicesTable = ({
 	data: initialData,
 	categories,
@@ -178,8 +171,13 @@ const ServicesTable = ({
 	// Sync state → URL (without triggering Next.js navigation)
 	useEffect(() => {
 		const params = new URLSearchParams();
-		if (mode === 'edit' && selected) { params.set('mode', 'edit'); params.set('id', selected.id); }
-		else if (mode === 'create') { params.set('mode', 'create'); if (prefillSlug) params.set('slug', prefillSlug); }
+		if (mode === 'edit' && selected) {
+			params.set('mode', 'edit');
+			params.set('id', selected.id);
+		} else if (mode === 'create') {
+			params.set('mode', 'create');
+			if (prefillSlug) params.set('slug', prefillSlug);
+		}
 		if (pagination.pageIndex > 0) params.set('page', String(pagination.pageIndex + 1));
 		if (pagination.pageSize !== 50) params.set('per_page', String(pagination.pageSize));
 		if (searchInput) params.set('q', searchInput);
@@ -188,30 +186,25 @@ const ServicesTable = ({
 		if (showVerified && !showUnverified) params.set('status', 'verified');
 		else if (!showVerified && showUnverified) params.set('status', 'unverified');
 		const s = sorting[0];
-		if (s && (s.id !== 'name' || s.desc)) { params.set('sort', s.id); params.set('dir', s.desc ? 'desc' : 'asc'); }
+		if (s && (s.id !== 'name' || s.desc)) {
+			params.set('sort', s.id);
+			params.set('dir', s.desc ? 'desc' : 'asc');
+		}
 		const qs = params.toString();
 		window.history.replaceState(null, '', qs ? `/?${qs}` : '/');
 	}, [selected, pagination, mode, prefillSlug, searchInput, columnFilters, showVerified, showUnverified, sorting]);
 
-	const visibleData = useMemo(
-		() => (showVerified && showUnverified ? data : data.filter((s) => (s.verified ? showVerified : showUnverified))),
-		[data, showVerified, showUnverified]
-	);
-	const verifiedCount = useMemo(() => data.filter((s) => s.verified).length, [data]);
+	const visibleData =
+		showVerified && showUnverified ? data : data.filter((s) => (s.verified ? showVerified : showUnverified));
+	const verifiedCount = data.filter((s) => s.verified).length;
 
-	const categoryNames = useMemo(() => categories.map((c) => c.title).sort(), [categories]);
-	const categoryCounts = useMemo(() => {
-		const counts: Record<string, number> = {};
-		for (const s of data) {
-			const cat = s.category?.title;
-			if (cat) counts[cat] = (counts[cat] ?? 0) + 1;
-		}
-		return counts;
-	}, [data]);
-	const selectedCategories = useMemo(
-		() => new Set((columnFilters.find((f) => f.id === 'category')?.value as string[]) ?? []),
-		[columnFilters]
-	);
+	const categoryNames = categories.map((c) => c.title).sort();
+	const categoryCounts: Record<string, number> = {};
+	for (const s of data) {
+		const cat = s.category?.title;
+		if (cat) categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
+	}
+	const selectedCategories = new Set((columnFilters.find((f) => f.id === 'category')?.value as string[]) ?? []);
 
 	// Reset to page 0 when filters change
 	const filterKey = `${showVerified}|${showUnverified}|${globalFilter}|${JSON.stringify(columnFilters)}`;
@@ -245,13 +238,9 @@ const ServicesTable = ({
 		}
 	});
 
-	// Unlinked logos
-	const unlinkedLogos = useMemo(() => {
-		const slugs = new Set(data.map((s) => s.slug));
-		return s3Logos.filter((slug) => !slugs.has(slug));
-	}, [data, s3Logos]);
+	const slugs = new Set(data.map((s) => s.slug));
+	const unlinkedLogos = s3Logos.filter((slug) => !slugs.has(slug));
 
-	// Derived counts for pagination
 	const filtered = table.getFilteredRowModel().rows.length;
 	const pageCount = Math.ceil(filtered / pagination.pageSize);
 	if (pageCount > 0 && pagination.pageIndex >= pageCount) {
@@ -320,7 +309,7 @@ const ServicesTable = ({
 								className="w-full text-left px-4 py-2 text-xs font-mono text-foreground hover:bg-muted/50 transition-colors cursor-pointer flex items-center gap-2"
 							>
 								<img
-									src={`${API}/s3/file/logos/${slug}.webp`}
+									src={`${API_URL}/s3/file/logos/${slug}.webp`}
 									alt=""
 									className="size-6 rounded object-cover bg-muted shrink-0"
 									onError={(e) => {

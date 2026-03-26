@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import useClickOutside from '@/lib/use-click-outside';
 
 type MenuItem = {
 	label: string;
@@ -21,22 +22,7 @@ type ContextMenuProps = {
 const ContextMenu = ({ x, y, items, onClose }: ContextMenuProps) => {
 	const ref = useRef<HTMLDivElement>(null);
 
-	useEffect(() => {
-		const handler = (e: MouseEvent) => {
-			if (ref.current && !ref.current.contains(e.target as Node)) {
-				onClose();
-			}
-		};
-		const esc = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') onClose();
-		};
-		document.addEventListener('mousedown', handler);
-		document.addEventListener('keydown', esc);
-		return () => {
-			document.removeEventListener('mousedown', handler);
-			document.removeEventListener('keydown', esc);
-		};
-	}, [onClose]);
+	useClickOutside(ref, onClose);
 
 	// Clamp to viewport
 	useEffect(() => {

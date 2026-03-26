@@ -3,10 +3,9 @@
 import { useState } from 'react';
 import AddServiceDialog from '@/components/add-service-dialog';
 import Squircle from '@/components/squircle';
+import { API_URL } from '@/lib/api';
 import { toast } from '@/lib/toast';
 import type { LimbusT } from '@/lib/types';
-
-const API_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

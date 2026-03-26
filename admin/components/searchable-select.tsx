@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import useClickOutside from '@/lib/use-click-outside';
 
 type Option = { value: string; label: string; icon?: React.ReactNode };
 
@@ -29,28 +30,11 @@ const SearchableSelect = ({
 	const selected = options.find((o) => o.value === value);
 	const filtered = search ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase())) : options;
 
-	useEffect(() => {
-		if (!open) return;
-		inputRef.current?.focus();
-		const handleClick = (e: MouseEvent) => {
-			if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-		};
-		const handleEsc = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				e.stopPropagation();
-				setOpen(false);
-			}
-		};
-		document.addEventListener('mousedown', handleClick);
-		document.addEventListener('keydown', handleEsc);
-		return () => {
-			document.removeEventListener('mousedown', handleClick);
-			document.removeEventListener('keydown', handleEsc);
-		};
-	}, [open]);
+	useClickOutside(ref, () => setOpen(false));
 
 	useEffect(() => {
-		if (!open) setSearch('');
+		if (open) inputRef.current?.focus();
+		else setSearch('');
 	}, [open]);
 
 	return (

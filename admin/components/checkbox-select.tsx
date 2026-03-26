@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import useClickOutside from '@/lib/use-click-outside';
 
 type CheckOption = { value: string; label: string; icon?: React.ReactNode; count?: number };
 
@@ -19,24 +20,7 @@ const CheckboxSelect = ({ options, selected, onChange, label, className }: Check
 	const allSelected = options.every((o) => selected.has(o.value));
 	const hasFilter = !allSelected;
 
-	useEffect(() => {
-		if (!open) return;
-		const handleClick = (e: MouseEvent) => {
-			if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-		};
-		const handleEsc = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				e.stopPropagation();
-				setOpen(false);
-			}
-		};
-		document.addEventListener('mousedown', handleClick);
-		document.addEventListener('keydown', handleEsc);
-		return () => {
-			document.removeEventListener('mousedown', handleClick);
-			document.removeEventListener('keydown', handleEsc);
-		};
-	}, [open]);
+	useClickOutside(ref, () => setOpen(false));
 
 	const toggle = (value: string) => {
 		const next = new Set(selected);

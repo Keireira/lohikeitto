@@ -5,15 +5,13 @@ import { getPageRange, scrollToTop } from './utils';
 
 const PAGE_SIZES = [25, 50, 75, 100] as const;
 
-// ── Full pagination (bottom of table) ─────────────
-
 const Pagination = ({
 	table,
 	pagination,
 	filtered,
 	total
 }: {
-	// biome-ignore lint: generic not needed
+	// biome-ignore lint: Table generic is invariant, can't use unknown
 	table: Table<any>;
 	pagination: PaginationState;
 	filtered: number;
@@ -100,14 +98,12 @@ const Pagination = ({
 	);
 };
 
-// ── Quick nav (top of table) ──────────────────────
-
 export const QuickNav = ({
 	table,
 	pagination,
 	filtered
 }: {
-	// biome-ignore lint: generic not needed
+	// biome-ignore lint: Table generic is invariant, can't use unknown
 	table: Table<any>;
 	pagination: PaginationState;
 	filtered: number;

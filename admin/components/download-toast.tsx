@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { API_URL } from '@/lib/api';
+import { formatEta, formatSize, triggerSave } from '@/lib/format';
 
 type Phase = 'fetching' | 'packaging' | 'downloading' | 'done' | 'error';
 
@@ -26,26 +28,11 @@ const initialState: DownloadState = {
 	error: null
 };
 
-const formatEta = (seconds: number): string => {
-	if (!Number.isFinite(seconds) || seconds < 0) return '';
-	if (seconds < 1) return '< 1s';
-	if (seconds < 60) return `~${Math.ceil(seconds)}s`;
-	return `~${Math.floor(seconds / 60)}m ${Math.ceil(seconds % 60)}s`;
-};
-
-const formatBytes = (bytes: number): string => {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
-const API_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
-
 const useDownload = () => {
 	const [state, setState] = useState<DownloadState>(initialState);
 	const abortRef = useRef<AbortController | null>(null);
 
-	const start = useCallback(async (archiveUrl: string, filename: string) => {
+	const start = async (archiveUrl: string, filename: string) => {
 		abortRef.current?.abort();
 		const controller = new AbortController();
 		abortRef.current = controller;
@@ -53,7 +40,6 @@ const useDownload = () => {
 		setState({ ...initialState, visible: true });
 
 		try {
-			// Phase 1: SSE — server fetches from S3 and packages
 			const sseUrl = archiveUrl.replace('/s3/archive', '/s3/archive');
 			const eventSource = new EventSource(sseUrl);
 
@@ -89,7 +75,6 @@ const useDownload = () => {
 				});
 			});
 
-			// Phase 2: Download the ready archive
 			setState((s) => ({ ...s, phase: 'downloading', downloadDetail: 'Starting...' }));
 
 			const prefix = new URL(sseUrl).searchParams.get('prefix') ?? '';
@@ -104,7 +89,7 @@ const useDownload = () => {
 			if (!reader || contentLength === 0) {
 				const blob = await res.blob();
 				triggerSave(blob, filename);
-				setState((s) => ({ ...s, phase: 'done', downloadPct: 100, downloadDetail: formatBytes(blob.size) }));
+				setState((s) => ({ ...s, phase: 'done', downloadPct: 100, downloadDetail: formatSize(blob.size) }));
 				autoHide();
 				return;
 			}
@@ -127,12 +112,12 @@ const useDownload = () => {
 				setState((s) => ({
 					...s,
 					downloadPct: pct,
-					downloadDetail: `${pct}% — ${formatBytes(received)} / ${formatBytes(contentLength)} — ${formatEta(eta)}`
+					downloadDetail: `${pct}% — ${formatSize(received)} / ${formatSize(contentLength)} — ${formatEta(eta)}`
 				}));
 			}
 
 			triggerSave(new Blob(chunks as BlobPart[]), filename);
-			setState((s) => ({ ...s, phase: 'done', downloadPct: 100, downloadDetail: formatBytes(received) }));
+			setState((s) => ({ ...s, phase: 'done', downloadPct: 100, downloadDetail: formatSize(received) }));
 			autoHide();
 		} catch (e) {
 			if (controller.signal.aborted) return;
@@ -143,14 +128,14 @@ const useDownload = () => {
 		function autoHide() {
 			setTimeout(() => setState(initialState), 3000);
 		}
-	}, []);
+	};
 
-	const dismiss = useCallback(() => {
+	const dismiss = () => {
 		abortRef.current?.abort();
 		setState(initialState);
-	}, []);
+	};
 
-	// Warn on page unload during download
+	// Prevent data loss if user navigates away mid-download
 	useEffect(() => {
 		const active = state.visible && state.phase !== 'done' && state.phase !== 'error';
 		if (!active) return;
@@ -163,14 +148,6 @@ const useDownload = () => {
 	}, [state.visible, state.phase]);
 
 	return { state, start, dismiss };
-};
-
-const triggerSave = (blob: Blob, filename: string) => {
-	const a = document.createElement('a');
-	a.href = URL.createObjectURL(blob);
-	a.download = filename;
-	a.click();
-	URL.revokeObjectURL(a.href);
 };
 
 const PhaseRow = ({

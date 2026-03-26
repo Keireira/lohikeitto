@@ -1,20 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { toast } from '@/lib/toast';
+import { useEffect, useRef, useState } from 'react';
+import ColorStudio, { extractColors, parseColor, toHex } from '@/components/color-studio';
+import LogoStudio from '@/components/logo-studio';
+import { logoApiUrl } from '@/components/service-icon';
+import Squircle from '@/components/squircle';
+import VectorizeWidget from '@/components/vectorize-widget';
 import { API_URL } from '@/lib/api';
 import { contrastText } from '@/lib/color';
 import { useLogoCacheStore } from '@/lib/logo-cache';
-import { logoApiUrl } from '@/components/service-icon';
-import ColorStudio, { extractColors, parseColor, toHex } from '@/components/color-studio';
-import LogoStudio from '@/components/logo-studio';
-import VectorizeWidget from '@/components/vectorize-widget';
-import Squircle from '@/components/squircle';
+import { toast } from '@/lib/toast';
 import type { CategoryT, ServiceT } from '@/lib/types';
-
-
-// ── Component ──────────────────────────────────────
 
 type Props = {
 	service?: ServiceT;
@@ -34,7 +31,7 @@ const EMPTY_SERVICE: ServiceT = {
 	category: null,
 	colors: { primary: '#0053db' },
 	logo_url: '',
-	ref_link: null,
+	ref_link: null
 };
 
 const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose, onUpdate, onDelete }: Props) => {
@@ -86,13 +83,23 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 
 	// Load logo + extract colors
 	useEffect(() => {
-		if (!committedSlug) { setLogoOk(false); setLogoBlobUrl(undefined); return; }
+		if (!committedSlug) {
+			setLogoOk(false);
+			setLogoBlobUrl(undefined);
+			return;
+		}
 		// If already cached in store, use it
 		if (cachedLogoBlobUrl) {
 			setLogoBlobUrl(cachedLogoBlobUrl);
 			const img = new Image();
-			img.onload = () => { setSuggestions(extractColors(img)); setLogoOk(true); };
-			img.onerror = () => { setLogoOk(false); setSuggestions([]); };
+			img.onload = () => {
+				setSuggestions(extractColors(img));
+				setLogoOk(true);
+			};
+			img.onerror = () => {
+				setLogoOk(false);
+				setSuggestions([]);
+			};
 			img.src = cachedLogoBlobUrl;
 			return;
 		}
@@ -101,19 +108,37 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 		setLogoOk(false);
 		setLogoBlobUrl(undefined);
 		fetch(logoApiUrl(committedSlug), { cache: 'no-store' })
-			.then((r) => r.ok ? r.blob() : Promise.reject())
+			.then((r) => (r.ok ? r.blob() : Promise.reject()))
 			.then((blob) => {
 				if (cancelled) return;
 				const url = URL.createObjectURL(blob);
 				setLogoBlobUrl(url);
 				setLogoCache(committedSlug, url);
 				const img = new Image();
-				img.onload = () => { if (!cancelled) { setSuggestions(extractColors(img)); setLogoOk(true); } };
-				img.onerror = () => { if (!cancelled) { setLogoOk(false); setSuggestions([]); } };
+				img.onload = () => {
+					if (!cancelled) {
+						setSuggestions(extractColors(img));
+						setLogoOk(true);
+					}
+				};
+				img.onerror = () => {
+					if (!cancelled) {
+						setLogoOk(false);
+						setSuggestions([]);
+					}
+				};
 				img.src = url;
 			})
-			.catch(() => { if (!cancelled) { setLogoOk(false); setLogoBlobUrl(undefined); setSuggestions([]); } });
-		return () => { cancelled = true; };
+			.catch(() => {
+				if (!cancelled) {
+					setLogoOk(false);
+					setLogoBlobUrl(undefined);
+					setSuggestions([]);
+				}
+			});
+		return () => {
+			cancelled = true;
+		};
 	}, [committedSlug, cachedLogoBlobUrl]);
 
 	// Sampler canvas
@@ -172,7 +197,9 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 				refLink !== (service.ref_link ?? ''));
 
 	// Cmd+Enter / Ctrl+Enter to save
-	useHotkey('Mod+Enter', () => { if (hasChanges && !saving) handleSave(); });
+	useHotkey('Mod+Enter', () => {
+		if (hasChanges && !saving) handleSave();
+	});
 
 	const resetForm = () => {
 		setName(service.name);
@@ -204,7 +231,7 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 						domains,
 						category_id: categoryId || null,
 						colors: { primary: color },
-						ref_link: refLink || null,
+						ref_link: refLink || null
 					})
 				});
 				if (!res.ok) throw new Error(`Create failed: ${res.status}`);
@@ -255,7 +282,7 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 				});
 			}
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : (isCreateMode ? 'Create failed' : 'Save failed'));
+			toast.error(e instanceof Error ? e.message : isCreateMode ? 'Create failed' : 'Save failed');
 		} finally {
 			setSaving(false);
 		}
@@ -308,27 +335,27 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 
 			{/* Body — scrollable */}
 			<div className="flex-1 overflow-y-auto px-6 py-5 space-y-7">
-				{/* ── Service Identity ── */}
 				<Section title="Service Identity">
 					<Label text="Service Name">
-						<input
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							className="ed-input"
-						/>
+						<input value={name} onChange={(e) => setName(e.target.value)} className="ed-input" />
 					</Label>
 					<Label text="Slug">
 						<input
 							value={slug}
 							onChange={(e) => setSlug(e.target.value)}
 							onBlur={() => setCommittedSlug(slug)}
-							onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setCommittedSlug(slug); (e.target as HTMLInputElement).blur(); } }}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									setCommittedSlug(slug);
+									(e.target as HTMLInputElement).blur();
+								}
+							}}
 							className="ed-input font-mono"
 						/>
 					</Label>
 				</Section>
 
-				{/* ── Logo ── */}
 				{slug && domains.length > 0 && (
 					<Section title="Logo">
 						<button
@@ -354,7 +381,6 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					</Section>
 				)}
 
-				{/* ── Associated Domains ── */}
 				<Section
 					title="Associated Domains"
 					action={
@@ -403,7 +429,6 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					/>
 				</Section>
 
-				{/* ── Metadata ── */}
 				<Section title="Metadata">
 					<Label text="Category">
 						<select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="ed-input">
@@ -425,7 +450,6 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					</Label>
 				</Section>
 
-				{/* ── Brand Color ── */}
 				<Section title="Brand Color">
 					<button
 						type="button"
@@ -448,7 +472,7 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 						disabled={saving}
 						className="flex-1 rounded-xl bg-accent py-3 text-sm font-bold text-white hover:opacity-90 transition-colors cursor-pointer disabled:opacity-50"
 					>
-						{saving ? (isCreateMode ? 'Creating...' : 'Saving...') : (isCreateMode ? 'Create Service' : 'Save Changes')}
+						{saving ? (isCreateMode ? 'Creating...' : 'Saving...') : isCreateMode ? 'Create Service' : 'Save Changes'}
 					</button>
 					<button
 						type="button"
@@ -465,7 +489,10 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 				<div className="px-6 py-3 border-t border-border shrink-0">
 					<button
 						type="button"
-						onClick={() => { setDeleteConfirm(true); setDeleteInput(''); }}
+						onClick={() => {
+							setDeleteConfirm(true);
+							setDeleteInput('');
+						}}
 						className="text-xs text-muted-fg hover:text-danger transition-colors cursor-pointer"
 					>
 						Delete service
@@ -475,11 +502,19 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 
 			{/* Delete confirmation */}
 			{deleteConfirm && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setDeleteConfirm(false)}>
-					<div className="w-96 rounded-2xl bg-surface border border-border shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+				<div
+					className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+					onClick={() => setDeleteConfirm(false)}
+				>
+					<div
+						className="w-96 rounded-2xl bg-surface border border-border shadow-2xl overflow-hidden"
+						onClick={(e) => e.stopPropagation()}
+					>
 						<div className="px-6 pt-5 pb-4">
 							<p className="text-sm font-bold text-foreground">Delete {service.name}?</p>
-							<p className="text-xs text-muted-fg mt-1">This will permanently remove the service and unlink its logo. Type the service name to confirm.</p>
+							<p className="text-xs text-muted-fg mt-1">
+								This will permanently remove the service and unlink its logo. Type the service name to confirm.
+							</p>
 						</div>
 						<div className="px-6 pb-4">
 							<input
@@ -502,7 +537,10 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 										await fetch(`${API_URL}/s3/rename`, {
 											method: 'POST',
 											headers: { 'Content-Type': 'application/json' },
-											body: JSON.stringify({ from: `logos/${service.slug}.webp`, to: `logos/.trash/${service.slug}.webp` })
+											body: JSON.stringify({
+												from: `logos/${service.slug}.webp`,
+												to: `logos/.trash/${service.slug}.webp`
+											})
 										}).catch(() => null);
 										// Delete service
 										const res = await fetch(`${API_URL}/services/${service.id}`, { method: 'DELETE' });
@@ -555,7 +593,10 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 							headers: { 'Content-Type': 'application/json' },
 							body: JSON.stringify({ domain: domains[0], slug: saveSlug, source })
 						});
-						if (!res.ok) { const err = await res.text(); throw new Error(err || `${res.status}`); }
+						if (!res.ok) {
+							const err = await res.text();
+							throw new Error(err || `${res.status}`);
+						}
 						toast.success(`Logo saved to logos/${saveSlug}.webp`);
 						setSlug(saveSlug);
 						setCommittedSlug(saveSlug);
@@ -574,11 +615,7 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 
 			{/* Vectorize */}
 			{vectorizeOpen && logoBlobUrl && (
-				<VectorizeWidget
-					blobUrl={logoBlobUrl}
-					slug={committedSlug || slug}
-					onClose={() => setVectorizeOpen(false)}
-				/>
+				<VectorizeWidget blobUrl={logoBlobUrl} slug={committedSlug || slug} onClose={() => setVectorizeOpen(false)} />
 			)}
 
 			{/* Color Studio */}

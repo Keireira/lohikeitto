@@ -1,8 +1,8 @@
 import EnvSync from '@/components/env-sync';
-import TopBar from '@/components/top-bar';
 import S3Browser from '@/components/s3-browser';
-import formatSize from '@/lib/format-size';
+import TopBar from '@/components/top-bar';
 import { fetchS3Info, fetchS3Objects, fetchServices } from '@/lib/api';
+import { formatSize } from '@/lib/format';
 
 const S3Page = async () => {
 	const [objects, info, services] = await Promise.all([fetchS3Objects(), fetchS3Info(), fetchServices()]);

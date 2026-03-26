@@ -8,7 +8,7 @@ const PRESETS = {
 	posterized2: 'Posterized',
 	curvy: 'Curvy',
 	sharp: 'Sharp',
-	detailed: 'Detailed',
+	detailed: 'Detailed'
 } as const;
 
 type Preset = keyof typeof PRESETS;
@@ -70,7 +70,10 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 			);
 			// Post-process: stroke smoothing via CSS rounded joins
 			if (strokeSmooth) {
-				svg = svg.replace(/<\/svg>/, '<style>path{paint-order:stroke fill;stroke-linejoin:round;stroke-linecap:round}</style></svg>');
+				svg = svg.replace(
+					/<\/svg>/,
+					'<style>path{paint-order:stroke fill;stroke-linejoin:round;stroke-linecap:round}</style></svg>'
+				);
 			}
 			setSvgString(svg);
 		} catch (e) {
@@ -117,7 +120,10 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 							{/* Vector */}
 							<div className="flex-1 flex flex-col items-center justify-center p-6 bg-[repeating-conic-gradient(var(--color-muted)_0%_25%,transparent_0%_50%)] bg-[length:12px_12px]">
 								{svgString ? (
-									<div className="w-full h-full max-h-[300px] flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-[300px]" dangerouslySetInnerHTML={{ __html: svgString }} />
+									<div
+										className="w-full h-full max-h-[300px] flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-[300px]"
+										dangerouslySetInnerHTML={{ __html: svgString }}
+									/>
 								) : tracing ? (
 									<div className="flex flex-col items-center gap-2">
 										<div className="size-6 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
@@ -145,7 +151,13 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 							<p className="text-[11px] font-bold text-accent uppercase tracking-widest">Vectorize</p>
 							<div className="flex items-center justify-between mt-1">
 								<h3 className="text-lg font-bold text-foreground">Settings</h3>
-								<button type="button" onClick={onClose} className="size-8 rounded-lg flex items-center justify-center text-muted-fg hover:text-foreground hover:bg-muted cursor-pointer transition-colors text-xl">{'×'}</button>
+								<button
+									type="button"
+									onClick={onClose}
+									className="size-8 rounded-lg flex items-center justify-center text-muted-fg hover:text-foreground hover:bg-muted cursor-pointer transition-colors text-xl"
+								>
+									{'×'}
+								</button>
 							</div>
 						</div>
 
@@ -199,7 +211,12 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 							{/* Stroke smooth */}
 							<label className="flex items-center justify-between cursor-pointer">
 								<span className="text-[10px] font-bold text-accent uppercase tracking-widest">Stroke smooth</span>
-								<input type="checkbox" checked={strokeSmooth} onChange={(e) => setStrokeSmooth(e.target.checked)} className="accent-accent cursor-pointer" />
+								<input
+									type="checkbox"
+									checked={strokeSmooth}
+									onChange={(e) => setStrokeSmooth(e.target.checked)}
+									className="accent-accent cursor-pointer"
+								/>
 							</label>
 
 							{/* Upscale */}

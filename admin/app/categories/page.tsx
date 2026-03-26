@@ -1,5 +1,5 @@
-import TopBar from '@/components/top-bar';
 import CategoriesManager from '@/components/categories-manager';
+import TopBar from '@/components/top-bar';
 import { fetchCategories, fetchServices } from '@/lib/api';
 
 const CategoriesPage = async () => {

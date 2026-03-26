@@ -57,4 +57,14 @@ const fetchLimbus = async (): Promise<LimbusT[]> => {
 
 const s3ArchiveKeysUrl = `${API_URL}/s3/archive-keys`;
 
-export { API_URL, fetchCategories, fetchLimbus, fetchServices, fetchS3Info, fetchS3Objects, s3ArchiveUrl, s3ArchiveKeysUrl, s3FileUrl };
+export {
+	API_URL,
+	fetchCategories,
+	fetchLimbus,
+	fetchS3Info,
+	fetchS3Objects,
+	fetchServices,
+	s3ArchiveKeysUrl,
+	s3ArchiveUrl,
+	s3FileUrl
+};

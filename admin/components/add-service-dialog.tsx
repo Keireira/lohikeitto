@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { API_URL } from '@/lib/api';
 import { toast } from '@/lib/toast';
-import type { CategoryT, ServiceT, LimbusT } from '@/lib/types';
+import type { CategoryT, LimbusT, ServiceT } from '@/lib/types';
 
 type Mode = 'service' | 'limbus';
 

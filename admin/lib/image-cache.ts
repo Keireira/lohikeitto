@@ -53,7 +53,9 @@ const fetchAndCache = async (url: string): Promise<string> => {
 		const db = await openCacheDb();
 		const tx = db.transaction(STORE_NAME, 'readwrite');
 		tx.objectStore(STORE_NAME).put(blob, url);
-	} catch { /* */ }
+	} catch {
+		/* */
+	}
 
 	return blobUrl;
 };
@@ -70,7 +72,9 @@ const clearImageCache = async () => {
 		const db = await openCacheDb();
 		const tx = db.transaction(STORE_NAME, 'readwrite');
 		tx.objectStore(STORE_NAME).clear();
-	} catch { /* */ }
+	} catch {
+		/* */
+	}
 };
 
-export { getCachedImage, refetchImage, clearImageCache };
+export { clearImageCache, getCachedImage, refetchImage };

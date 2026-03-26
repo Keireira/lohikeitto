@@ -13,19 +13,15 @@ const StatCard = ({ label, value, detail, accent, indicator }: StatCardProps) =>
 				{label}
 			</span>
 			{indicator && (
-				<span className={`size-2 rounded-full ${
-					indicator === 'green' ? 'bg-success' : indicator === 'yellow' ? 'bg-yellow-400' : 'bg-danger'
-				}`} />
+				<span
+					className={`size-2 rounded-full ${
+						indicator === 'green' ? 'bg-success' : indicator === 'yellow' ? 'bg-yellow-400' : 'bg-danger'
+					}`}
+				/>
 			)}
 		</div>
-		<p className={`text-2xl font-extrabold tracking-tight ${accent ? 'text-white' : 'text-foreground'}`}>
-			{value}
-		</p>
-		{detail && (
-			<p className={`text-sm mt-1 ${accent ? 'text-white/70' : 'text-muted-fg'}`}>
-				{detail}
-			</p>
-		)}
+		<p className={`text-2xl font-extrabold tracking-tight ${accent ? 'text-white' : 'text-foreground'}`}>{value}</p>
+		{detail && <p className={`text-sm mt-1 ${accent ? 'text-white/70' : 'text-muted-fg'}`}>{detail}</p>}
 	</div>
 );
 

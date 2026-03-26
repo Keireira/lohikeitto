@@ -1,6 +1,6 @@
-import TopBar from '@/components/top-bar';
-import StatCard from '@/components/stat-card';
 import LimbusTable from '@/components/limbus-table';
+import StatCard from '@/components/stat-card';
+import TopBar from '@/components/top-bar';
 import { fetchLimbus } from '@/lib/api';
 
 const LimbusPage = async () => {

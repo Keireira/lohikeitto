@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-
-// ── Filter chip (inline token) ──
+import { useRef, useState } from 'react';
+import useClickOutside from '@/lib/use-click-outside';
 
 type ChipProps = {
 	label: string;
@@ -17,14 +16,7 @@ const FilterChip = ({ label, value, active, onClear, onClick, children }: ChipPr
 	const ref = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState(false);
 
-	useEffect(() => {
-		if (!open) return;
-		const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-		const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
-		document.addEventListener('mousedown', close);
-		document.addEventListener('keydown', esc);
-		return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
-	}, [open]);
+	useClickOutside(ref, () => setOpen(false));
 
 	if (onClick && !children) {
 		return (
@@ -32,18 +24,21 @@ const FilterChip = ({ label, value, active, onClear, onClick, children }: ChipPr
 				type="button"
 				onClick={onClick}
 				className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm transition-all cursor-pointer ${
-					active
-						? 'bg-accent/10 text-accent font-medium'
-						: 'text-muted-fg hover:text-foreground hover:bg-muted'
+					active ? 'bg-accent/10 text-accent font-medium' : 'text-muted-fg hover:text-foreground hover:bg-muted'
 				}`}
 			>
 				<span className="opacity-50">{label}</span>
 				{value && <span className="font-medium text-foreground">{value}</span>}
 				{active && onClear && (
 					<span
-						onClick={(e) => { e.stopPropagation(); onClear(); }}
+						onClick={(e) => {
+							e.stopPropagation();
+							onClear();
+						}}
 						className="ml-0.5 opacity-40 hover:opacity-100"
-					>{'×'}</span>
+					>
+						{'×'}
+					</span>
 				)}
 			</button>
 		);
@@ -55,30 +50,27 @@ const FilterChip = ({ label, value, active, onClear, onClick, children }: ChipPr
 				type="button"
 				onClick={() => setOpen((v) => !v)}
 				className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm transition-all cursor-pointer ${
-					active
-						? 'bg-accent/10 text-accent font-medium'
-						: 'text-muted-fg hover:text-foreground hover:bg-muted'
+					active ? 'bg-accent/10 text-accent font-medium' : 'text-muted-fg hover:text-foreground hover:bg-muted'
 				} ${open ? 'bg-muted text-foreground' : ''}`}
 			>
 				<span className="opacity-50">{label}</span>
 				{value && <span className="font-medium text-foreground">{value}</span>}
 				{active && onClear && (
 					<span
-						onClick={(e) => { e.stopPropagation(); onClear(); }}
+						onClick={(e) => {
+							e.stopPropagation();
+							onClear();
+						}}
 						className="ml-0.5 opacity-40 hover:opacity-100"
-					>{'×'}</span>
+					>
+						{'×'}
+					</span>
 				)}
 			</button>
-			{open && children && (
-				<div className="absolute top-full left-0 mt-1 z-30">
-					{children}
-				</div>
-			)}
+			{open && children && <div className="absolute top-full left-0 mt-1 z-30">{children}</div>}
 		</div>
 	);
 };
-
-// ── Checkbox list dropdown ──
 
 type Option = { value: string; label: string; count?: number };
 
@@ -99,7 +91,8 @@ const CheckList = ({
 
 	const toggle = (v: string) => {
 		const next = new Set(selected);
-		if (next.has(v)) next.delete(v); else next.add(v);
+		if (next.has(v)) next.delete(v);
+		else next.add(v);
 		onChange(next);
 	};
 
@@ -143,9 +136,11 @@ const CheckList = ({
 						onClick={() => toggle(o.value)}
 						className="w-full flex items-center gap-2 px-3.5 py-2 text-sm cursor-pointer hover:bg-muted/50 transition-colors text-left"
 					>
-						<div className={`size-3.5 rounded-[4px] border flex items-center justify-center shrink-0 transition-all ${
-							selected.has(o.value) ? 'bg-accent border-accent' : 'border-muted-fg/30'
-						}`}>
+						<div
+							className={`size-3.5 rounded-[4px] border flex items-center justify-center shrink-0 transition-all ${
+								selected.has(o.value) ? 'bg-accent border-accent' : 'border-muted-fg/30'
+							}`}
+						>
 							{selected.has(o.value) && <span className="text-white text-[7px] font-bold">{'✓'}</span>}
 						</div>
 						<span className="flex-1 truncate">{o.label}</span>
@@ -157,4 +152,4 @@ const CheckList = ({
 	);
 };
 
-export { FilterChip, CheckList };
+export { CheckList, FilterChip };
