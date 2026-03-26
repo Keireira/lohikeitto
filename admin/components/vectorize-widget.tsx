@@ -4,11 +4,11 @@ import { useRef, useState } from 'react';
 import { toast } from '@/lib/toast';
 
 const PRESETS = {
-	default: 'Default',
-	posterized2: 'Posterized',
-	curvy: 'Curvy',
-	sharp: 'Sharp',
-	detailed: 'Detailed'
+	default: { label: 'Default', desc: 'Balanced paths, good for most logos' },
+	posterized2: { label: 'Posterized', desc: 'Flat color regions, minimal detail' },
+	curvy: { label: 'Curvy', desc: 'Smooth bezier curves, organic shapes' },
+	sharp: { label: 'Sharp', desc: 'Straight edges, geometric shapes' },
+	detailed: { label: 'Detailed', desc: 'Maximum detail, larger SVG output' },
 } as const;
 
 type Preset = keyof typeof PRESETS;
@@ -17,9 +17,8 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 	const [svgString, setSvgString] = useState<string | null>(null);
 	const [tracing, setTracing] = useState(false);
 	const [preset, setPreset] = useState<Preset>('default');
-	const [colors, setColors] = useState(16);
-	const [smoothing, setSmoothing] = useState(3);
-	const [upscale, setUpscale] = useState(2);
+	const [colors, setColors] = useState(2);
+	const [smoothing, setSmoothing] = useState(4);
 	const [strokeSmooth, setStrokeSmooth] = useState(true);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -37,8 +36,10 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 			});
 
 			const canvas = canvasRef.current!;
-			canvas.width = img.naturalWidth * upscale;
-			canvas.height = img.naturalHeight * upscale;
+			const MAX_DIM = 2048;
+			const scale = Math.min(MAX_DIM / img.naturalWidth, MAX_DIM / img.naturalHeight, 6);
+			canvas.width = Math.round(img.naturalWidth * scale);
+			canvas.height = Math.round(img.naturalHeight * scale);
 			const ctx = canvas.getContext('2d')!;
 			ctx.imageSmoothingEnabled = true;
 			ctx.imageSmoothingQuality = 'high';
@@ -50,23 +51,23 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 
 			const options = { ...(ImageTracer.optionpresets[preset] ?? {}) };
 			options.numberofcolors = colors;
-			options.ltres = Math.max(0.01, 1 - smoothing * 0.12);
-			options.qtres = Math.max(0.01, 1 - smoothing * 0.12);
-			options.blurradius = Math.min(5, Math.round(smoothing * 0.8));
+			// Higher = smoother curves (more deviation from pixel edges allowed)
+			options.ltres = 0.1 + smoothing * 0.3;
+			options.qtres = 0.5 + smoothing * 0.5;
+			// Pre-trace blur removes pixel staircase
+			options.blurradius = 2 + smoothing;
 			options.blurdelta = 40;
-			options.pathomit = Math.round(smoothing * 3);
-			options.roundcoords = 1;
+			options.pathomit = 4 + smoothing * 2;
+			options.roundcoords = 2;
 			if (strokeSmooth) {
-				options.strokewidth = Math.max(1, smoothing * 0.5);
+				options.strokewidth = 1 + smoothing * 0.3;
 			}
 
 			let svg = ImageTracer.imagedataToSVG(imageData, options);
 			// Normalize SVG: add viewBox scaled back to original size, remove fixed dimensions
-			const ow = img.naturalWidth;
-			const oh = img.naturalHeight;
 			svg = svg.replace(
 				/(<svg[^>]*?)(\s+width="\d+")(\s+height="\d+")/,
-				(_m, pre) => `${pre} viewBox="0 0 ${ow * upscale} ${oh * upscale}"`
+				(_m, pre) => `${pre} viewBox="0 0 ${canvas.width} ${canvas.height}"`
 			);
 			// Post-process: stroke smoothing via CSS rounded joins
 			if (strokeSmooth) {
@@ -166,14 +167,15 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 							<div>
 								<p className="text-[10px] font-bold text-accent uppercase tracking-widest mb-2">Preset</p>
 								<div className="space-y-1">
-									{(Object.entries(PRESETS) as [Preset, string][]).map(([key, label]) => (
+									{(Object.entries(PRESETS) as [Preset, (typeof PRESETS)[Preset]][]).map(([key, { label, desc }]) => (
 										<button
 											key={key}
 											type="button"
 											onClick={() => setPreset(key)}
-											className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-all cursor-pointer ${preset === key ? 'bg-accent/10 text-accent font-semibold ring-1 ring-accent/20' : 'text-foreground hover:bg-muted'}`}
+											className={`w-full text-left rounded-lg px-3 py-2 transition-all cursor-pointer ${preset === key ? 'bg-accent/10 ring-1 ring-accent/20' : 'hover:bg-muted'}`}
 										>
-											{label}
+											<p className={`text-sm ${preset === key ? 'text-accent font-semibold' : 'text-foreground'}`}>{label}</p>
+											<p className="text-[10px] text-muted-fg">{desc}</p>
 										</button>
 									))}
 								</div>
@@ -218,23 +220,6 @@ const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: st
 									className="accent-accent cursor-pointer"
 								/>
 							</label>
-
-							{/* Upscale */}
-							<div>
-								<p className="text-[10px] font-bold text-accent uppercase tracking-widest mb-2">Upscale</p>
-								<div className="flex gap-1.5">
-									{[1, 2, 3, 4].map((v) => (
-										<button
-											key={v}
-											type="button"
-											onClick={() => setUpscale(v)}
-											className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all cursor-pointer ${upscale === v ? 'bg-accent/10 text-accent ring-1 ring-accent/20' : 'text-foreground hover:bg-muted'}`}
-										>
-											{v}x
-										</button>
-									))}
-								</div>
-							</div>
 						</div>
 					</div>
 				</div>
