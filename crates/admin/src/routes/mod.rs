@@ -38,6 +38,7 @@ pub fn router() -> Router<AdminState> {
         .route("/s3/rename", post(s3::rename))
         .route("/logos/fetch", post(logos::fetch_logo))
         .route("/logos/save", post(logos::save_logo))
+        .route("/logos/vectorize", post(logos::vectorize))
         .route("/db/export", get(database::export_sql))
         .route("/db/drop", post(database::drop_all))
         .route("/db/import", post(database::import_sql))

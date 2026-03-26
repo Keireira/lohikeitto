@@ -26,6 +26,9 @@ importers:
       next:
         specifier: 16.2.0
         version: 16.2.0(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      potrace-wasm:
+        specifier: ^1.0.4
+        version: 1.0.4
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -586,6 +589,9 @@ packages:
     resolution: {integrity: sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==}
     engines: {node: ^10 || ^12 || >=14}
 
+  potrace-wasm@1.0.4:
+    resolution: {integrity: sha512-Bj940W9APwIPZgm3VGK2HUAs6BXffgn5r4cOLIzFUtvX8bI+MlA7zbbE01+k71tz2Mu/jmdTGEcVpLevNJLtjg==}
+
   react-dom@19.2.4:
     resolution: {integrity: sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==}
     peerDependencies:
@@ -1079,6 +1085,8 @@ snapshots:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  potrace-wasm@1.0.4: {}
 
   react-dom@19.2.4(react@19.2.4):
     dependencies:

@@ -20,3 +20,5 @@ futures = "0.3"
 rust-s3 = { version = "0.36", default-features = false, features = ["tokio-rustls-tls", "fail-on-err"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+vtracer = "0.6.5"
+image = { version = "0.25.10", default-features = false, features = ["png", "webp"] }
