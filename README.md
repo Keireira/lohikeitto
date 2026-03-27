@@ -2,6 +2,10 @@
 
 Service catalog with search, logos, categories, and an admin panel.
 
+## Docs
+
+Read the fucking docs from `make docs`
+
 ## Architecture
 
 | Layer | Tech |
@@ -37,52 +41,6 @@ make admin  # Admin panel on :3001
 docker compose up -d
 ```
 
-## Admin panel
-
-The admin panel provides:
-
-- **Services** -- CRUD, search, filtering by category/verification status, pagination, URL state sync
-- **Color Studio** -- Sample colors from logo with loupe magnifier, auto-average approximation, multi-format output (HEX/RGB/HSL/OKLCH), paste any CSS color format
-- **Logo Studio** -- Fetch from Brandfetch/logo.dev, upload local, save to S3
-- **Vectorize** -- Potrace (2-color WASM) and vtracer (multicolor server-side) with threshold/invert controls
-- **Gradient Extractor** -- Detect linear/radial gradients from logo, auto angle detection, background/foreground target, auto/manual stops (2-100), copy CSS/SVG
-- **S3 Browser** -- Navigate, upload, download (SSE progress), rename, delete, archive, image preview with thumbnails
-- **Categories** -- Create, rename, delete, view services per category
-- **Limbus** -- Review queue for discovered services, approve/reject
-
-### Admin project structure
-
-```
-admin/
-  app/              # Next.js App Router pages
-  components/       # Decomposed component folders
-    color-studio/   # Color sampling + format conversion
-    s3-browser/     # S3 file management
-    service-detail/ # Service editor with sub-components
-    services-table/ # Table with filters, sorting, pagination
-    vectorize-widget/ # SVG vectorization + gradient extraction
-    pagination/     # Shared pagination components
-    ...             # Flat components (sidebar, squircle, etc.)
-  lib/              # Shared utilities, hooks, stores, types
-  types/            # Ambient type declarations
-```
-
-## Environment variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `LOGO_BASE_URL` | Yes | CDN base URL for service logos |
-| `BRANDFETCH_CLIENT_ID` | Yes | Brandfetch client ID |
-| `LOGODEV_TOKEN` | Yes | logo.dev API token |
-| `CF_R2_S3_API` | Yes | R2 S3-compatible endpoint URL |
-| `CF_R2_ACCOUNT_ACCESS_KEY_ID` | Yes | R2 access key ID |
-| `CF_R2_ACCOUNT_SECRET_ACCESS_KEY` | Yes | R2 secret access key |
-| `CF_R2_BUCKET` | Yes | R2 bucket name |
-| `ADMIN_TOKEN` | Yes | Bearer token for admin endpoints |
-| `CORS_ORIGIN` | No | Allowed origin (default `*`) |
-| `HOST` | No | Bind address (default `0.0.0.0`) |
-| `PORT` | No | Bind port (default `3000`) |
 
 ## Make commands
 

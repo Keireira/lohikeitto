@@ -29,19 +29,26 @@ const GradientTab = ({
 	<>
 		{/* Preview: side by side */}
 		<div className="flex flex-1 min-h-0">
+			{/* Original */}
 			<div className="flex-1 flex flex-col items-center justify-center p-6 border-r border-border bg-[repeating-conic-gradient(var(--color-muted)_0%_25%,transparent_0%_50%)] bg-[length:12px_12px]">
-				<img src={blobUrl} alt="Original" className="max-w-full max-h-[400px] object-contain" />
+				<img src={blobUrl} alt="Original" className="max-w-[80%] max-h-[400px] object-contain" />
 				<p className="text-[10px] text-muted-fg mt-3 uppercase tracking-wider">Original</p>
 			</div>
+			{/* Gradient preview */}
 			<div className="flex-1 flex flex-col items-center justify-center p-6 bg-[repeating-conic-gradient(var(--color-muted)_0%_25%,transparent_0%_50%)] bg-[length:12px_12px]">
 				{gradient ? (
 					<>
 						<div
-							className="w-full max-w-[300px] aspect-square rounded-2xl border border-border shadow-lg"
+							className="w-full max-w-[320px] aspect-square rounded-2xl border border-border shadow-lg"
 							style={{ background: gradient.css_gradient }}
 						/>
-						{/* Stops row */}
-						<div className="flex items-center gap-1 mt-3">
+						{/* Gradient bar */}
+						<div
+							className="w-full max-w-[320px] h-6 rounded-lg border border-border mt-3"
+							style={{ background: gradient.css_gradient }}
+						/>
+						{/* Stops */}
+						<div className="flex flex-wrap gap-1 mt-3 w-full max-w-[320px]">
 							{gradient.stops.map((stop, i) => (
 								<button
 									key={i}
@@ -50,12 +57,15 @@ const GradientTab = ({
 										navigator.clipboard.writeText(stop.color);
 										toast.success(`Copied ${stop.color}`);
 									}}
-									className="size-5 rounded-md border border-border shadow-sm cursor-pointer hover:scale-125 transition-transform"
+									className="size-6 rounded-md border border-border shadow-sm cursor-pointer hover:scale-110 transition-transform"
 									style={{ backgroundColor: stop.color }}
 									title={`${stop.color} (${Math.round(stop.offset * 100)}%)`}
 								/>
 							))}
 						</div>
+						<p className="text-[10px] text-muted-fg mt-2 capitalize">
+							{gradient.mode} {gradient.mode === 'linear' ? `${Math.round(gradient.angle_deg)}°` : ''} / {gradient.stops.length} stops
+						</p>
 					</>
 				) : gradientLoading ? (
 					<div className="flex flex-col items-center gap-2">
@@ -65,15 +75,12 @@ const GradientTab = ({
 				) : (
 					<p className="text-xs text-muted-fg/40">Press Extract</p>
 				)}
-				<p className="text-[10px] text-muted-fg mt-3 uppercase tracking-wider">
-					{gradient ? `${gradient.mode} gradient, ${gradient.stops.length} stops` : 'Gradient'}
-				</p>
+				<p className="text-[10px] text-muted-fg mt-3 uppercase tracking-wider">Gradient</p>
 			</div>
 		</div>
 
 		{/* Footer: controls + actions */}
 		<div className="px-6 py-4 border-t border-border flex items-center gap-4 bg-muted/5 shrink-0">
-			{/* Target toggle */}
 			<div className="flex items-center gap-1 rounded-xl border border-border p-0.5">
 				{([['bg', 'BG'], ['logo', 'Logo']] as const).map(([val, label]) => (
 					<button
@@ -89,7 +96,6 @@ const GradientTab = ({
 				))}
 			</div>
 
-			{/* Mode toggle */}
 			<div className="flex items-center gap-1 rounded-xl border border-border p-0.5">
 				{(['linear', 'radial'] as const).map((m) => (
 					<button
@@ -107,7 +113,6 @@ const GradientTab = ({
 
 			<div className="w-px h-6 bg-border" />
 
-			{/* Stops */}
 			<div className="flex items-center gap-1 rounded-xl border border-border p-0.5">
 				<button
 					type="button"
@@ -144,14 +149,13 @@ const GradientTab = ({
 						max={100}
 						value={gradStops}
 						onChange={(e) => setGradStops(Math.max(2, Math.min(100, Number(e.target.value) || 2)))}
-						className="w-12 rounded-lg border border-border bg-surface px-1.5 py-1 text-xs text-center font-mono tabular-nums focus:outline-none focus:border-accent"
+						className="w-14 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-center font-mono tabular-nums focus:outline-none focus:border-accent"
 					/>
 				</div>
 			)}
 
 			<div className="flex-1" />
 
-			{/* Copy actions */}
 			{gradient && (
 				<>
 					<button
