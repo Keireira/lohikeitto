@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+	--background: #f7f9fb;
+	--foreground: #2a3439;
+	--surface: #ffffff;
+	--sidebar: #f1f5f9;
+	--muted: #e8eff3;
+	--muted-fg: #566166;
+	--border: #e1e9ee;
+	--accent: #0053db;
+	--accent-light: #d3e4fe;
+	--accent-fg: #435368;
+	--success: #10b981;
+	--danger: #ef4444;
+}
+
+.dark {
+	--background: #151827;
+	--foreground: #e0e4f0;
+	--surface: #1e2235;
+	--sidebar: #191d30;
+	--muted: #252a40;
+	--muted-fg: #8890b0;
+	--border: #2a3050;
+	--accent: #5b7cff;
+	--accent-light: #2a3358;
+	--accent-fg: #b0bfff;
+	--success: #34d399;
+	--danger: #f87171;
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-surface: var(--surface);
+	--color-sidebar: var(--sidebar);
+	--color-muted: var(--muted);
+	--color-muted-fg: var(--muted-fg);
+	--color-border: var(--border);
+	--color-accent: var(--accent);
+	--color-accent-light: var(--accent-light);
+	--color-accent-fg: var(--accent-fg);
+	--color-success: var(--success);
+	--color-danger: var(--danger);
+	--font-sans: var(--font-geist-sans);
+	--font-mono: var(--font-geist-mono);
+}
+
+body {
+	background: var(--background);
+	color: var(--foreground);
+}
+
+@keyframes slideUp {
+	from {
+		opacity: 0;
+		transform: translateY(12px) scale(0.97);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes shrink {
+	from {
+		width: 100%;
+	}
+	to {
+		width: 0%;
+	}
+}

@@ -1,0 +1,12 @@
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+pub struct BFSearchItem {
+    #[allow(dead_code)]
+    pub claimed: bool,
+    #[serde(rename = "brandId")]
+    pub brand_id: String,
+    pub name: Option<String>,
+    pub domain: String,
+    pub icon: Option<String>,
+}

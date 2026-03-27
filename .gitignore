@@ -10,6 +10,6 @@ target/
 *.env
 !*.env.example
 
-frontend/
-rules/
-history
+.next
+_domains
+_todo
