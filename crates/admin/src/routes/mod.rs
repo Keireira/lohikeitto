@@ -4,8 +4,12 @@ mod limbus;
 mod logos;
 pub mod s3;
 mod services;
+mod vectorize;
 
-use axum::{Router, routing::{delete, get, post, put}};
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
 
 use crate::app::AdminState;
 
@@ -38,9 +42,8 @@ pub fn router() -> Router<AdminState> {
         .route("/s3/rename", post(s3::rename))
         .route("/logos/fetch", post(logos::fetch_logo))
         .route("/logos/save", post(logos::save_logo))
-        .route("/logos/vectorize", post(logos::vectorize))
-        .route("/logos/gradient", post(logos::extract_gradient))
-        // extract_gradient doesn't need AdminState, but axum requires consistent state type
+        .route("/logos/vectorize", post(vectorize::vectorize))
+        .route("/logos/gradient", post(vectorize::extract_gradient))
         .route("/db/export", get(database::export_sql))
         .route("/db/drop", post(database::drop_all))
         .route("/db/import", post(database::import_sql))

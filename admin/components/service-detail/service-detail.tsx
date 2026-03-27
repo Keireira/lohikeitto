@@ -2,7 +2,7 @@
 
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useEffect, useRef, useState } from 'react';
-import ColorStudio, { extractColors, parseColor, toHex } from '@/components/color-studio';
+import ColorStudio, { extractColors } from '@/components/color-studio';
 import LogoStudio from '@/components/logo-studio';
 import { logoApiUrl } from '@/components/service-icon';
 import Squircle from '@/components/squircle';
@@ -12,8 +12,11 @@ import { contrastText } from '@/lib/color';
 import { useLogoCacheStore } from '@/lib/logo-cache';
 import { toast } from '@/lib/toast';
 import type { CategoryT, ServiceT } from '@/lib/types';
+import Label from './label';
+import PreviewModal from './preview-modal';
+import Section from './section';
 
-type Props = {
+export type Props = {
 	service?: ServiceT;
 	categories: CategoryT[];
 	prefillSlug?: string;
@@ -22,7 +25,7 @@ type Props = {
 	onDelete?: (id: string) => void;
 };
 
-const EMPTY_SERVICE: ServiceT = {
+export const EMPTY_SERVICE: ServiceT = {
 	id: '',
 	name: '',
 	slug: '',
@@ -646,88 +649,6 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					border-color: var(--accent);
 				}
 			`}</style>
-		</div>
-	);
-};
-
-const Section = ({
-	title,
-	action,
-	children
-}: {
-	title: string;
-	action?: React.ReactNode;
-	children: React.ReactNode;
-}) => (
-	<div>
-		<div className="flex items-center justify-between mb-3">
-			<span className="text-[10px] font-bold uppercase tracking-widest text-accent">{title}</span>
-			{action}
-		</div>
-		<div className="space-y-3">{children}</div>
-	</div>
-);
-
-const Label = ({ text, children }: { text: string; children: React.ReactNode }) => (
-	<div>
-		<span className="text-xs text-muted-fg mb-1 block">{text}</span>
-		{children}
-	</div>
-);
-
-const PreviewModal = ({
-	color,
-	logoOk,
-	proxiedLogo,
-	name,
-	onClose
-}: {
-	color: string;
-	logoOk: boolean;
-	proxiedLogo: string;
-	name: string;
-	onClose: () => void;
-}) => {
-	useEffect(() => {
-		const handler = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				e.stopImmediatePropagation();
-				onClose();
-			}
-		};
-		window.addEventListener('keydown', handler);
-		return () => window.removeEventListener('keydown', handler);
-	}, [onClose]);
-
-	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-			<div className="relative rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
-				<div className="w-[480px] h-[480px] flex items-center justify-center" style={{ backgroundColor: color }}>
-					<Squircle
-						size={200}
-						color="transparent"
-						src={logoOk ? proxiedLogo : undefined}
-						fallback={!logoOk ? name.charAt(0).toUpperCase() : undefined}
-						style={{ color: contrastText(color), fontSize: '5rem' }}
-					/>
-				</div>
-				<div className="absolute bottom-4 left-0 right-0 flex justify-center">
-					<span
-						className="rounded-full px-4 py-1.5 text-sm font-mono font-medium backdrop-blur-md"
-						style={{ backgroundColor: `${contrastText(color)}20`, color: contrastText(color) }}
-					>
-						{color}
-					</span>
-				</div>
-				<button
-					type="button"
-					onClick={onClose}
-					className="absolute top-3 right-3 size-8 rounded-lg flex items-center justify-center text-sm cursor-pointer"
-					style={{ backgroundColor: `${contrastText(color)}20`, color: contrastText(color) }}
-				>
-					{'✕'}
-				</button>
-			</div>
 		</div>
 	);
 };

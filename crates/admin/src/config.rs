@@ -3,7 +3,7 @@ pub struct Config {
     pub database_url: String,
     pub host: String,
     pub port: u16,
-    pub admin_token: String,
+    // pub admin_token: String,
     pub s3_base_url: String,
     pub s3_endpoint: String,
     pub s3_access_key: String,
@@ -11,7 +11,6 @@ pub struct Config {
     pub s3_bucket: String,
     pub brandfetch_client_id: Option<String>,
     pub logodev_pk: Option<String>,
-    pub logodev_sk: Option<String>,
 }
 
 impl Config {
@@ -23,7 +22,7 @@ impl Config {
                 .ok()
                 .and_then(|p| p.parse().ok())
                 .unwrap_or(1337),
-            admin_token: std::env::var("ADMIN_TOKEN").expect("ADMIN_TOKEN must be set"),
+            // admin_token: std::env::var("ADMIN_TOKEN").expect("ADMIN_TOKEN must be set"),
             s3_base_url: std::env::var("S3_BASE_URL").expect("S3_BASE_URL must be set"),
             s3_endpoint: std::env::var("CF_R2_S3_API").expect("CF_R2_S3_API must be set"),
             s3_access_key: std::env::var("CF_R2_ACCOUNT_ACCESS_KEY_ID")
@@ -33,7 +32,6 @@ impl Config {
             s3_bucket: std::env::var("CF_R2_BUCKET").expect("CF_R2_BUCKET must be set"),
             brandfetch_client_id: std::env::var("BRANDFETCH_CLIENT_ID").ok(),
             logodev_pk: std::env::var("LOGODEV_PK").ok(),
-            logodev_sk: std::env::var("LOGODEV_SK").ok(),
         }
     }
 }

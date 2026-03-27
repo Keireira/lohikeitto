@@ -1,4 +1,7 @@
-use axum::{Json, extract::{Path, State}};
+use axum::{
+    Json,
+    extract::{Path, State},
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -139,5 +142,8 @@ pub async fn approve(
         .execute(&state.db)
         .await?;
 
-    Ok(Json(serde_json::json!({ "approved": id, "name": limbus.name })))
+    Ok(Json(serde_json::json!({
+        "approved": id,
+        "name": limbus.name,
+    })))
 }

@@ -18,12 +18,27 @@ impl IntoResponse for AdminError {
             AdminError::NotFound => (StatusCode::NOT_FOUND, "Not found".to_string()),
             AdminError::Internal(msg) => {
                 tracing::error!(error = %msg, "internal server error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+
+                let response = (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                );
+
+                response
             }
             AdminError::InvalidInput(msg) => (StatusCode::BAD_REQUEST, msg),
         };
 
-        (status, Json(json!({ "status": "error", "code": status.as_u16(), "message": message }))).into_response()
+        let answer = (
+            status,
+            Json(json!({
+                "status": "error",
+                "code": status.as_u16(),
+                "message": message
+            })),
+        );
+
+        answer.into_response()
     }
 }
 

@@ -1,4 +1,7 @@
-use axum::{Json, extract::{Path, State}};
+use axum::{
+    Json,
+    extract::{Path, State},
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -72,7 +75,10 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
                 colors: r.colors,
                 logo_url,
                 ref_link: r.ref_link,
-                category: r.category_id.zip(r.category_title).map(|(id, title)| CategoryRef { id, title }),
+                category: r
+                    .category_id
+                    .zip(r.category_title)
+                    .map(|(id, title)| CategoryRef { id, title }),
             }
         })
         .collect();
@@ -81,7 +87,9 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
 }
 
 /// List all categories.
-pub async fn list_categories(State(state): State<AdminState>) -> Result<Json<Vec<CategoryItem>>, AdminError> {
+pub async fn list_categories(
+    State(state): State<AdminState>,
+) -> Result<Json<Vec<CategoryItem>>, AdminError> {
     let rows = sqlx::query_as::<sqlx::Postgres, CategoryItem>(
         "SELECT id, title FROM categories ORDER BY title",
     )
@@ -132,7 +140,10 @@ pub async fn create(
         .bind(cat_id)
         .fetch_optional(&state.db)
         .await?
-        .map(|c| CategoryRef { id: c.id, title: c.title })
+        .map(|c| CategoryRef {
+            id: c.id,
+            title: c.title,
+        })
     } else {
         None
     };
@@ -171,13 +182,34 @@ pub async fn update(
     let mut sets = Vec::new();
     let mut idx = 2u32; // $1 is id
 
-    if req.name.is_some() { sets.push(format!("name = ${idx}")); idx += 1; }
-    if req.slug.is_some() { sets.push(format!("slug = ${idx}")); idx += 1; }
-    if req.domains.is_some() { sets.push(format!("domains = ${idx}")); idx += 1; }
-    if req.verified.is_some() { sets.push(format!("verified = ${idx}")); idx += 1; }
-    if req.category_id.is_some() { sets.push(format!("category_id = ${idx}")); idx += 1; }
-    if req.colors.is_some() { sets.push(format!("colors = ${idx}")); idx += 1; }
-    if req.ref_link.is_some() { sets.push(format!("ref_link = ${idx}")); idx += 1; }
+    if req.name.is_some() {
+        sets.push(format!("name = ${idx}"));
+        idx += 1;
+    }
+    if req.slug.is_some() {
+        sets.push(format!("slug = ${idx}"));
+        idx += 1;
+    }
+    if req.domains.is_some() {
+        sets.push(format!("domains = ${idx}"));
+        idx += 1;
+    }
+    if req.verified.is_some() {
+        sets.push(format!("verified = ${idx}"));
+        idx += 1;
+    }
+    if req.category_id.is_some() {
+        sets.push(format!("category_id = ${idx}"));
+        idx += 1;
+    }
+    if req.colors.is_some() {
+        sets.push(format!("colors = ${idx}"));
+        idx += 1;
+    }
+    if req.ref_link.is_some() {
+        sets.push(format!("ref_link = ${idx}"));
+        idx += 1;
+    }
 
     if sets.is_empty() {
         return Ok(Json(serde_json::json!({ "updated": false })));
@@ -187,13 +219,27 @@ pub async fn update(
 
     let mut query = sqlx::query(&sql).bind(id);
 
-    if let Some(v) = &req.name { query = query.bind(v); }
-    if let Some(v) = &req.slug { query = query.bind(v); }
-    if let Some(v) = &req.domains { query = query.bind(v); }
-    if let Some(v) = &req.verified { query = query.bind(v); }
-    if let Some(v) = &req.category_id { query = query.bind(v); }
-    if let Some(v) = &req.colors { query = query.bind(v); }
-    if let Some(v) = &req.ref_link { query = query.bind(v); }
+    if let Some(v) = &req.name {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.slug {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.domains {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.verified {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.category_id {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.colors {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.ref_link {
+        query = query.bind(v);
+    }
 
     let _ = idx; // suppress unused warning
 
@@ -233,7 +279,10 @@ pub async fn create_category(
         .execute(&state.db)
         .await?;
 
-    Ok(Json(CategoryItem { id, title: req.title }))
+    Ok(Json(CategoryItem {
+        id,
+        title: req.title,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
