@@ -225,6 +225,15 @@ INSERT INTO services (id, name, slug, domains, category_id, colors, ref_link) VA
   ('c774c3fa-de87-44f7-a4bf-1b7ba94e0091', 'Кинопоиск', 'kinopoisk', '{kinopoisk.ru}', '44444444-0000-0000-0000-000000000001', '{"primary":"#EB662B"}', NULL),
   ('55000002-0001-4000-8000-000000000010', 'Яндекс Музыка', 'yandex-music', '{music.yandex}', '44444444-0000-0000-0000-000000000002', '{"primary":"#FFDB4D"}', NULL);
 
+CREATE TABLE limbus (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name            TEXT NOT NULL,
+    domain          TEXT NOT NULL UNIQUE,
+    logo_url        TEXT,
+    source          TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ============================================================
 -- Indexes
 -- ============================================================

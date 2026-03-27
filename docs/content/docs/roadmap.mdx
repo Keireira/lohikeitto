@@ -1,0 +1,24 @@
+---
+title: Roadmap
+description: Planned features and improvements
+---
+
+## Service details
+
+Full service data endpoint — fetch complete metadata by domain or ID. External results not yet in the local database go into a **limbus** (staging area) for manual curation before being added to the catalog.
+
+## Data versioning
+
+Track changes to service data over time — prices, plans, features. Historical snapshots of service metadata, queryable by date.
+
+## Mirror discovery
+
+Automated detection of domain mirrors via redirect checks (HEAD request → follow 3xx → map to canonical domain). Runs as a background task on new and existing services.
+
+## App Attest
+
+Apple App Attest for device-level API protection — ensures requests come from the legitimate iOS app without requiring user authentication. Secure Enclave key per device, local assertion verification on the backend.
+
+## Scale to thousands
+
+Expand the catalog from ~170 seed services to several thousand. Requires automating data ingestion and reducing manual curation per service.
