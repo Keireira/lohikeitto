@@ -164,6 +164,20 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
         .collect()
 }
 
+/// Search external sources by domain, return first match.
+pub async fn lookup_external(
+    http: &Client,
+    config: &Config,
+    domain: &str,
+) -> Option<SearchResult> {
+    let (bf, ld) = tokio::join!(
+        search_brandfetch(http, &config.brandfetch_client_id, domain),
+        search_logodev(http, &config.logodev_pk, &config.logodev_sk, domain),
+    );
+
+    bf.into_iter().chain(ld).next()
+}
+
 /// Deduplicate by domain. Local results may have multiple domains — each one
 /// blocks external duplicates. Priority: local > brandfetch > logo.dev.
 fn deduplicate(
