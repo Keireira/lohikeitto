@@ -6,7 +6,6 @@ import ColorStudio, { extractColors } from '@/components/color-studio';
 import LogoStudio from '@/components/logo-studio';
 import { logoApiUrl } from '@/components/service-icon';
 import Squircle from '@/components/squircle';
-import VectorizeWidget from '@/components/vectorize-widget';
 import { API_URL } from '@/lib/api';
 import { contrastText } from '@/lib/color';
 import { useLogoCacheStore } from '@/lib/logo-cache';
@@ -93,7 +92,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 	const bustLogoCache = useLogoCacheStore((s) => s.bust);
 	const [logoBlobUrl, setLogoBlobUrl] = useState<string | undefined>(undefined);
 	const [logoStudioOpen, setLogoStudioOpen] = useState(false);
-	const [vectorizeOpen, setVectorizeOpen] = useState(false);
+	const [socialStudioOpen, setSocialStudioOpen] = useState(false);
 	const [deleteConfirm, setDeleteConfirm] = useState(false);
 	const [deleteInput, setDeleteInput] = useState('');
 	const [deleting, setDeleting] = useState(false);
@@ -439,7 +438,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 				</Section>
 
 				{slug && domains.length > 0 && (
-					<Section title="Logo">
+					<Section title="Logo & Color">
 						<button
 							type="button"
 							onClick={() => setLogoStudioOpen(true)}
@@ -450,16 +449,15 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 							<span className="text-sm flex-1 text-muted-fg">{committedSlug}.webp</span>
 							<span className="text-[10px] text-muted-fg">Logo Studio</span>
 						</button>
-						{logoBlobUrl && (
-							<button
-								type="button"
-								onClick={() => setVectorizeOpen(true)}
-								className="w-full ed-input flex items-center gap-3 cursor-pointer hover:border-accent transition-colors text-left mt-1.5"
-							>
-								<span className="text-sm flex-1 text-muted-fg">Vectorize to SVG</span>
-								<span className="text-[10px] text-muted-fg">Trace</span>
-							</button>
-						)}
+						<button
+							type="button"
+							onClick={() => setSamplerOpen(true)}
+							className="w-full ed-input flex items-center gap-3 cursor-pointer hover:border-accent transition-colors text-left"
+						>
+							<div className="size-8 rounded-full shrink-0" style={{ backgroundColor: color }} />
+							<span className="font-mono text-sm flex-1">{color}</span>
+							<span className="text-[10px] text-muted-fg">Color Studio</span>
+						</button>
 					</Section>
 				)}
 
@@ -621,42 +619,35 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 				</Section>
 
 				<Section title="Social Links">
-					{SOCIAL_PLATFORMS.map((p) => {
-						const val = socialLinks[p.key] ?? '';
+					{(() => {
+						const count = Object.keys(socialLinks).filter((k) => socialLinks[k]).length;
 						return (
-							<div key={p.key} className="flex items-center gap-2">
-								<span className="w-20 text-xs text-muted-fg truncate" title={p.key}>
-									{p.label}
+							<button
+								type="button"
+								onClick={() => setSocialStudioOpen(true)}
+								className="w-full ed-input flex items-center gap-3 cursor-pointer hover:border-accent transition-colors text-left"
+							>
+								<div className="flex -space-x-1">
+									{count > 0
+										? SOCIAL_PLATFORMS.filter((p) => socialLinks[p.key])
+												.slice(0, 5)
+												.map((p) => (
+													<span
+														key={p.key}
+														className="size-6 rounded-full bg-muted flex items-center justify-center text-[9px] font-bold text-muted-fg ring-2 ring-surface"
+													>
+														{p.label.slice(0, 2)}
+													</span>
+												))
+										: null}
+								</div>
+								<span className="text-sm flex-1 text-muted-fg">
+									{count > 0 ? `${count} link${count > 1 ? 's' : ''}` : 'No social links'}
 								</span>
-								<input
-									value={val}
-									onChange={(e) => {
-										const v = e.target.value;
-										setSocialLinks((prev) => {
-											const next = { ...prev };
-											if (v) next[p.key] = v;
-											else delete next[p.key];
-											return next;
-										});
-									}}
-									placeholder={p.placeholder}
-									className="ed-input font-mono text-xs flex-1"
-								/>
-							</div>
+								<span className="text-[10px] text-muted-fg">Edit</span>
+							</button>
 						);
-					})}
-				</Section>
-
-				<Section title="Brand Color">
-					<button
-						type="button"
-						onClick={() => setSamplerOpen(true)}
-						className="w-full ed-input flex items-center gap-3 cursor-pointer hover:border-accent transition-colors text-left"
-					>
-						<div className="size-8 rounded-full shrink-0" style={{ backgroundColor: color }} />
-						<span className="font-mono text-sm flex-1">{color}</span>
-						<span className="text-[10px] text-muted-fg">Edit</span>
-					</button>
+					})()}
 				</Section>
 			</div>
 
@@ -810,9 +801,13 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 				/>
 			)}
 
-			{/* Vectorize */}
-			{vectorizeOpen && logoBlobUrl && (
-				<VectorizeWidget blobUrl={logoBlobUrl} slug={committedSlug || slug} onClose={() => setVectorizeOpen(false)} />
+			{/* Social Studio */}
+			{socialStudioOpen && (
+				<SocialStudio
+					links={socialLinks}
+					onChange={setSocialLinks}
+					onClose={() => setSocialStudioOpen(false)}
+				/>
 			)}
 
 			{/* Color Studio */}
@@ -944,6 +939,132 @@ const TagInput = ({
 					))}
 				</div>
 			)}
+		</div>
+	);
+};
+
+const SocialStudio = ({
+	links,
+	onChange,
+	onClose
+}: {
+	links: Record<string, string>;
+	onChange: (v: Record<string, string>) => void;
+	onClose: () => void;
+}) => {
+	const [draft, setDraft] = useState<Record<string, string>>({ ...links });
+
+	const set = (key: string, val: string) => setDraft((p) => ({ ...p, [key]: val }));
+	const remove = (key: string) =>
+		setDraft((p) => {
+			const next = { ...p };
+			delete next[key];
+			return next;
+		});
+
+	const filled = SOCIAL_PLATFORMS.filter((p) => p.key in draft);
+	const empty = SOCIAL_PLATFORMS.filter((p) => !(p.key in draft));
+	const changed = JSON.stringify(draft) !== JSON.stringify(links);
+
+	const save = () => {
+		const clean: Record<string, string> = {};
+		for (const [k, v] of Object.entries(draft)) {
+			if (v.trim()) clean[k] = v.trim();
+		}
+		onChange(clean);
+		onClose();
+	};
+
+	return (
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+			<div
+				className="bg-surface rounded-2xl border border-border shadow-2xl w-[520px] max-w-[95vw] max-h-[85vh] overflow-hidden flex flex-col"
+				onClick={(e) => e.stopPropagation()}
+			>
+				{/* Header */}
+				<div className="flex items-center justify-between px-6 py-4 border-b border-border">
+					<div>
+						<h2 className="text-base font-bold text-foreground">Social Links</h2>
+						<p className="text-xs text-muted-fg mt-0.5">
+							{filled.length > 0 ? `${filled.length} platform${filled.length > 1 ? 's' : ''}` : 'No links yet'}
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="size-8 rounded-lg flex items-center justify-center text-muted-fg hover:text-foreground hover:bg-muted cursor-pointer transition-colors"
+					>
+						{'×'}
+					</button>
+				</div>
+
+				{/* Body */}
+				<div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+					{/* Active links */}
+					{filled.length > 0 && (
+						<div className="space-y-2.5">
+							{filled.map((p) => (
+								<div key={p.key} className="group">
+									<div className="flex items-center justify-between mb-1.5">
+										<span className="text-xs font-semibold text-foreground">{p.label}</span>
+										<button
+											type="button"
+											onClick={() => remove(p.key)}
+											className="text-[10px] text-muted-fg/30 hover:text-danger cursor-pointer transition-colors opacity-0 group-hover:opacity-100"
+										>
+											Remove
+										</button>
+									</div>
+									<input
+										value={draft[p.key]}
+										onChange={(e) => set(p.key, e.target.value)}
+										placeholder={p.placeholder}
+										className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-mono focus:outline-none focus:border-accent transition-colors"
+									/>
+								</div>
+							))}
+						</div>
+					)}
+
+					{/* Add platforms */}
+					{empty.length > 0 && (
+						<div>
+							<p className="text-[10px] font-bold text-muted-fg uppercase tracking-widest mb-2">Add platform</p>
+							<div className="grid grid-cols-3 gap-1.5">
+								{empty.map((p) => (
+									<button
+										key={p.key}
+										type="button"
+										onClick={() => set(p.key, '')}
+										className="rounded-xl border border-dashed border-border py-2.5 text-xs text-muted-fg hover:text-accent hover:border-accent/30 hover:bg-accent/5 cursor-pointer transition-colors"
+									>
+										{p.label}
+									</button>
+								))}
+							</div>
+						</div>
+					)}
+				</div>
+
+				{/* Footer */}
+				<div className="px-6 py-3.5 border-t border-border flex items-center justify-end gap-3">
+					<button
+						type="button"
+						onClick={onClose}
+						className="rounded-xl px-4 py-2 text-sm text-muted-fg hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						disabled={!changed}
+						onClick={save}
+						className="rounded-xl bg-accent px-6 py-2 text-sm font-bold text-white hover:opacity-90 transition-colors cursor-pointer disabled:opacity-30"
+					>
+						Save
+					</button>
+				</div>
+			</div>
 		</div>
 	);
 };
