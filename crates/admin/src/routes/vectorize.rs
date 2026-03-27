@@ -122,7 +122,7 @@ fn dedup_stops(stops: Vec<GradientStop>) -> Vec<GradientStop> {
     for stop in &stops {
         if out
             .last()
-            .map_or(true, |prev: &GradientStop| prev.color != stop.color)
+            .is_none_or(|prev: &GradientStop| prev.color != stop.color)
         {
             out.push(GradientStop {
                 offset: stop.offset,

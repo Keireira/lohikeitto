@@ -65,7 +65,7 @@ pub async fn download_file(
         .map_err(|e| AdminError::Internal(format!("failed to get {key}: {e}")))?;
 
     let bytes = response.bytes().to_vec();
-    let filename = key.split('/').last().unwrap_or(&key);
+    let filename = key.split('/').next_back().unwrap_or(&key);
     let content_type = mime_from_ext(filename);
 
     Ok((
@@ -121,7 +121,7 @@ pub async fn copy_move(
 
     let mut count = 0u64;
     for key in &req.keys {
-        let filename = key.split('/').last().unwrap_or(key);
+        let filename = key.split('/').next_back().unwrap_or(key);
         let new_key = format!("{dest}{filename}");
 
         // S3 has no native copy — download then upload
@@ -184,7 +184,7 @@ pub async fn upload(
     Path(key): Path<String>,
     body: axum::body::Bytes,
 ) -> Result<Json<serde_json::Value>, AdminError> {
-    let filename = key.split('/').last().unwrap_or(&key);
+    let filename = key.split('/').next_back().unwrap_or(&key);
     let content_type = mime_from_ext(filename);
 
     state

@@ -130,7 +130,7 @@ pub async fn approve(
     )
     .bind(&limbus.name)
     .bind(&req.slug)
-    .bind(&[limbus.domain.clone()])
+    .bind(std::slice::from_ref(&limbus.domain))
     .bind(req.category_id)
     .bind(&req.colors)
     .execute(&state.db)
