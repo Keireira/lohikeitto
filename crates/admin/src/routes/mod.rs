@@ -39,6 +39,8 @@ pub fn router() -> Router<AdminState> {
         .route("/logos/fetch", post(logos::fetch_logo))
         .route("/logos/save", post(logos::save_logo))
         .route("/logos/vectorize", post(logos::vectorize))
+        .route("/logos/gradient", post(logos::extract_gradient))
+        // extract_gradient doesn't need AdminState, but axum requires consistent state type
         .route("/db/export", get(database::export_sql))
         .route("/db/drop", post(database::drop_all))
         .route("/db/import", post(database::import_sql))
