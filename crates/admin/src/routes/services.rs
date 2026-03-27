@@ -13,7 +13,9 @@ pub struct ServiceItem {
     pub id: Uuid,
     pub name: String,
     pub slug: String,
+    pub bundle_id: Option<String>,
     pub domains: Vec<String>,
+    pub alternative_names: Vec<String>,
     pub verified: bool,
     pub category: Option<CategoryRef>,
     pub colors: serde_json::Value,
@@ -32,7 +34,9 @@ struct ServiceWithCategory {
     id: Uuid,
     name: String,
     slug: String,
+    bundle_id: Option<String>,
     domains: Vec<String>,
+    alternative_names: Vec<String>,
     verified: bool,
     colors: serde_json::Value,
     ref_link: Option<String>,
@@ -52,7 +56,8 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
 
     let rows = sqlx::query_as::<sqlx::Postgres, ServiceWithCategory>(
         r#"
-        SELECT s.id, s.name, s.slug, s.domains, s.verified, s.colors, s.ref_link,
+        SELECT s.id, s.name, s.slug, s.bundle_id, s.domains, s.alternative_names,
+               s.verified, s.colors, s.ref_link,
                c.id as category_id, c.title as category_title
         FROM services s
         LEFT JOIN categories c ON s.category_id = c.id
@@ -70,7 +75,9 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
                 id: r.id,
                 name: r.name,
                 slug: r.slug,
+                bundle_id: r.bundle_id,
                 domains: r.domains,
+                alternative_names: r.alternative_names,
                 verified: r.verified,
                 colors: r.colors,
                 logo_url,
@@ -104,7 +111,9 @@ pub async fn list_categories(
 pub struct CreateService {
     pub name: String,
     pub slug: String,
+    pub bundle_id: Option<String>,
     pub domains: Vec<String>,
+    pub alternative_names: Option<Vec<String>>,
     pub category_id: Option<Uuid>,
     pub colors: serde_json::Value,
     pub ref_link: Option<String>,
@@ -114,16 +123,19 @@ pub async fn create(
     State(state): State<AdminState>,
     Json(req): Json<CreateService>,
 ) -> Result<Json<ServiceItem>, AdminError> {
+    let alt_names = req.alternative_names.as_deref().unwrap_or(&[]);
     let id: Uuid = sqlx::query_scalar(
         r#"
-        INSERT INTO services (name, slug, domains, verified, category_id, colors, ref_link)
-        VALUES ($1, $2, $3, false, $4, $5, $6)
+        INSERT INTO services (name, slug, bundle_id, domains, alternative_names, verified, category_id, colors, ref_link)
+        VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8)
         RETURNING id
         "#,
     )
     .bind(&req.name)
     .bind(&req.slug)
+    .bind(&req.bundle_id)
     .bind(&req.domains)
+    .bind(alt_names)
     .bind(req.category_id)
     .bind(&req.colors)
     .bind(&req.ref_link)
@@ -152,7 +164,9 @@ pub async fn create(
         id,
         name: req.name,
         slug: req.slug,
+        bundle_id: req.bundle_id,
         domains: req.domains,
+        alternative_names: req.alternative_names.unwrap_or_default(),
         verified: false,
         colors: req.colors,
         logo_url,
@@ -166,7 +180,9 @@ pub async fn create(
 pub struct UpdateService {
     pub name: Option<String>,
     pub slug: Option<String>,
+    pub bundle_id: Option<String>,
     pub domains: Option<Vec<String>>,
+    pub alternative_names: Option<Vec<String>>,
     pub verified: Option<bool>,
     pub category_id: Option<Uuid>,
     pub colors: Option<serde_json::Value>,
@@ -190,8 +206,16 @@ pub async fn update(
         sets.push(format!("slug = ${idx}"));
         idx += 1;
     }
+    if req.bundle_id.is_some() {
+        sets.push(format!("bundle_id = ${idx}"));
+        idx += 1;
+    }
     if req.domains.is_some() {
         sets.push(format!("domains = ${idx}"));
+        idx += 1;
+    }
+    if req.alternative_names.is_some() {
+        sets.push(format!("alternative_names = ${idx}"));
         idx += 1;
     }
     if req.verified.is_some() {
@@ -225,7 +249,13 @@ pub async fn update(
     if let Some(v) = &req.slug {
         query = query.bind(v);
     }
+    if let Some(v) = &req.bundle_id {
+        query = query.bind(v);
+    }
     if let Some(v) = &req.domains {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.alternative_names {
         query = query.bind(v);
     }
     if let Some(v) = &req.verified {

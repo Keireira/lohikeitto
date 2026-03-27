@@ -29,7 +29,9 @@ export const EMPTY_SERVICE: ServiceT = {
 	id: '',
 	name: '',
 	slug: '',
+	bundle_id: null,
 	domains: [],
+	alternative_names: [],
 	verified: false,
 	category: null,
 	colors: { primary: '#0053db' },
@@ -48,6 +50,10 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 	const [domainInput, setDomainInput] = useState('');
 	const [categoryId, setCategoryId] = useState(service.category?.id ?? '');
 	const [color, setColor] = useState(service.colors.primary);
+	const defaultBundleId = (s: string) => (s ? `com.${s}.root` : '');
+	const [bundleId, setBundleId] = useState(service.bundle_id || defaultBundleId(prefillSlug || service.slug));
+	const [altNames, setAltNames] = useState<string[]>(service.alternative_names);
+	const [altNameInput, setAltNameInput] = useState('');
 	const [refLink, setRefLink] = useState(service.ref_link ?? '');
 	const [verified, setVerified] = useState(service.verified);
 	const [saving, setSaving] = useState(false);
@@ -73,6 +79,9 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 		setCommittedSlug(prefillSlug || service.slug);
 		setDomains(service.domains);
 		setDomainInput('');
+		setBundleId(service.bundle_id || defaultBundleId(prefillSlug || service.slug));
+		setAltNames(service.alternative_names);
+		setAltNameInput('');
 		setCategoryId(service.category?.id ?? '');
 		setColor(service.colors.primary);
 		setRefLink(service.ref_link ?? '');
@@ -194,7 +203,9 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 		: prevIdRef.current === service.id &&
 			(name !== service.name ||
 				slug !== service.slug ||
+				bundleId !== (service.bundle_id ?? '') ||
 				JSON.stringify(domains) !== JSON.stringify(service.domains) ||
+				JSON.stringify(altNames) !== JSON.stringify(service.alternative_names) ||
 				categoryId !== (service.category?.id ?? '') ||
 				color !== service.colors.primary ||
 				refLink !== (service.ref_link ?? ''));
@@ -208,7 +219,10 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 		setName(service.name);
 		setSlug(prefillSlug || service.slug);
 		setCommittedSlug(prefillSlug || service.slug);
+		setBundleId(service.bundle_id || defaultBundleId(prefillSlug || service.slug));
 		setDomains(service.domains);
+		setAltNames(service.alternative_names);
+		setAltNameInput('');
 		setDomainInput('');
 		setCategoryId(service.category?.id ?? '');
 		setColor(service.colors.primary);
@@ -231,7 +245,9 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					body: JSON.stringify({
 						name: name.trim(),
 						slug: slug.trim(),
+						bundle_id: bundleId || `com.${slug.trim()}.root`,
 						domains,
+						alternative_names: altNames,
 						category_id: categoryId || null,
 						colors: { primary: color },
 						ref_link: refLink || null
@@ -244,7 +260,9 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 				const body: Record<string, unknown> = {};
 				if (name !== service.name) body.name = name;
 				if (slug !== service.slug) body.slug = slug;
+				if (bundleId !== (service.bundle_id ?? '')) body.bundle_id = bundleId || `com.${slug.trim()}.root`;
 				if (JSON.stringify(domains) !== JSON.stringify(service.domains)) body.domains = domains;
+				if (JSON.stringify(altNames) !== JSON.stringify(service.alternative_names)) body.alternative_names = altNames;
 				const newCatId = categoryId || null;
 				if (newCatId !== (service.category?.id ?? null)) body.category_id = newCatId;
 				if (color !== service.colors.primary) body.colors = { primary: color };
@@ -276,7 +294,9 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					...service,
 					name,
 					slug,
+					bundle_id: bundleId || `com.${slug.trim()}.root`,
 					domains,
+					alternative_names: altNames,
 					verified,
 					category: cat ? { id: cat.id, title: cat.title } : null,
 					colors: { primary: color },
@@ -345,7 +365,13 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					<Label text="Slug">
 						<input
 							value={slug}
-							onChange={(e) => setSlug(e.target.value)}
+							onChange={(e) => {
+								const newSlug = e.target.value;
+								if (!bundleId || bundleId === defaultBundleId(slug)) {
+									setBundleId(defaultBundleId(newSlug));
+								}
+								setSlug(newSlug);
+							}}
 							onBlur={() => setCommittedSlug(slug)}
 							onKeyDown={(e) => {
 								if (e.key === 'Enter') {
@@ -355,6 +381,13 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 								}
 							}}
 							className="ed-input font-mono"
+						/>
+					</Label>
+					<Label text="Bundle ID">
+						<input
+							value={bundleId}
+							onChange={(e) => setBundleId(e.target.value)}
+							className="ed-input font-mono text-xs"
 						/>
 					</Label>
 				</Section>
@@ -429,6 +462,58 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 						}}
 						placeholder="Add domains..."
 						className="ed-input font-mono text-xs"
+					/>
+				</Section>
+
+				<Section
+					title="Alternative Names"
+					action={
+						<button
+							type="button"
+							onClick={() => {
+								const parts = altNameInput
+									.split(',')
+									.map((s) => s.trim())
+									.filter((s) => s && !altNames.includes(s));
+								if (parts.length > 0) setAltNames((prev) => [...prev, ...parts]);
+								setAltNameInput('');
+							}}
+							className="text-[10px] font-bold uppercase tracking-wider text-accent cursor-pointer hover:opacity-70"
+						>
+							+ Add
+						</button>
+					}
+				>
+					<div className="flex flex-wrap gap-1.5">
+						{altNames.map((n) => (
+							<span key={n} className="group flex items-center rounded-full bg-muted/50 text-xs">
+								<span className="pl-3 py-1.5">{n}</span>
+								<button
+									type="button"
+									onClick={() => setAltNames((prev) => prev.filter((x) => x !== n))}
+									className="text-muted-fg/30 hover:text-danger cursor-pointer px-2 py-1.5"
+								>
+									{'✕'}
+								</button>
+							</span>
+						))}
+					</div>
+					<input
+						value={altNameInput}
+						onChange={(e) => setAltNameInput(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								const parts = altNameInput
+									.split(',')
+									.map((s) => s.trim())
+									.filter((s) => s && !altNames.includes(s));
+								if (parts.length > 0) setAltNames((prev) => [...prev, ...parts]);
+								setAltNameInput('');
+							}
+						}}
+						placeholder="Add aliases (comma-separated)..."
+						className="ed-input text-xs"
 					/>
 				</Section>
 

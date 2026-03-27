@@ -15,7 +15,9 @@ struct ServiceRow {
     id: Uuid,
     name: String,
     slug: String,
+    bundle_id: Option<String>,
     domains: Vec<String>,
+    alternative_names: Vec<String>,
     verified: bool,
     colors: serde_json::Value,
     ref_link: Option<String>,
@@ -37,7 +39,9 @@ fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
         id: row.id,
         name: row.name,
         slug: row.slug,
+        bundle_id: row.bundle_id,
         domains: row.domains,
+        alternative_names: row.alternative_names,
         verified: row.verified,
         colors: row.colors,
         logo_url,
@@ -54,7 +58,9 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
         id: row.id,
         name: row.name,
         slug: String::new(),
+        bundle_id: None,
         domains: vec![row.domain],
+        alternative_names: vec![],
         verified: false,
         colors: serde_json::json!({}),
         logo_url: row.logo_url.unwrap_or_default(),
@@ -86,7 +92,8 @@ pub async fn get(
     // Try as UUID
     if let Ok(id) = lookup.parse::<Uuid>() {
         if let Some(row) = sqlx::query_as::<_, ServiceRow>(
-            r#"SELECT s.id, s.name, s.slug, s.domains, s.verified, s.colors, s.ref_link,
+            r#"SELECT s.id, s.name, s.slug, s.bundle_id, s.domains, s.alternative_names,
+                      s.verified, s.colors, s.ref_link,
                       c.id as category_id, c.title as category_title
                FROM services s
                LEFT JOIN categories c ON s.category_id = c.id
@@ -114,11 +121,13 @@ pub async fn get(
 
     // Treat as slug or domain
     if let Some(row) = sqlx::query_as::<_, ServiceRow>(
-        r#"SELECT s.id, s.name, s.slug, s.domains, s.verified, s.colors, s.ref_link,
-                  c.id as category_id, c.title as category_title
+        r#"SELECT s.id, s.name, s.slug, s.bundle_id, s.domains, s.alternative_names,
+                      s.verified, s.colors, s.ref_link,
+                      c.id as category_id, c.title as category_title
            FROM services s
            LEFT JOIN categories c ON s.category_id = c.id
-           WHERE s.slug = $1 OR $1 = ANY(s.domains)"#,
+           WHERE s.slug = $1 OR s.bundle_id = $1 OR $1 = ANY(s.domains)
+              OR EXISTS (SELECT 1 FROM unnest(s.alternative_names) a WHERE a ILIKE $1)"#,
     )
     .bind(&lookup)
     .fetch_optional(&state.db)
@@ -164,7 +173,9 @@ pub async fn get(
         id: limbus_id,
         name: result.name,
         slug: String::new(),
+        bundle_id: None,
         domains: vec![domain.clone()],
+        alternative_names: vec![],
         verified: false,
         colors: serde_json::json!({}),
         logo_url: result.logo_url,

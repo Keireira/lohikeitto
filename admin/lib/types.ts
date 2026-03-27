@@ -7,7 +7,9 @@ type ServiceT = {
 	id: string;
 	name: string;
 	slug: string;
+	bundle_id: string | null;
 	domains: string[];
+	alternative_names: string[];
 	verified: boolean;
 	category: CategoryT | null;
 	colors: { primary: string };

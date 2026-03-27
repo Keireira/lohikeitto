@@ -56,6 +56,8 @@ async fn search_local(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchRe
         WHERE name ILIKE '%' || $1 || '%'
            OR slug ILIKE '%' || replace($1, ' ', '-') || '%'
            OR EXISTS (SELECT 1 FROM unnest(domains) d WHERE d ILIKE '%' || $1 || '%')
+           OR EXISTS (SELECT 1 FROM unnest(alternative_names) a WHERE a ILIKE '%' || $1 || '%')
+           OR bundle_id ILIKE '%' || replace($1, ' ', '.') || '%'
         ORDER BY similarity(name, $1) DESC
         LIMIT 10
         "#,
