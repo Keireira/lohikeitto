@@ -112,22 +112,22 @@ pub async fn get(
         return Err(ApiError::NotFound);
     }
 
-    // Treat as domain
-    let domain = &lookup;
-
+    // Treat as slug or domain
     if let Some(row) = sqlx::query_as::<_, ServiceRow>(
         r#"SELECT s.id, s.name, s.slug, s.domains, s.verified, s.colors, s.ref_link,
                   c.id as category_id, c.title as category_title
            FROM services s
            LEFT JOIN categories c ON s.category_id = c.id
-           WHERE $1 = ANY(s.domains)"#,
+           WHERE s.slug = $1 OR $1 = ANY(s.domains)"#,
     )
-    .bind(domain)
+    .bind(&lookup)
     .fetch_optional(&state.db)
     .await?
     {
         return Ok(Json(service_to_response(row, s3_base)));
     }
+
+    let domain = &lookup;
 
     if let Some(row) = sqlx::query_as::<_, LimbusRow>(
         "SELECT id, name, domain, logo_url FROM limbus WHERE domain = $1",
