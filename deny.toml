@@ -1,0 +1,7 @@
+[advisories]
+ignore = [
+    # Transitive through vtracer 0.6.5 — no upgrade available
+    "RUSTSEC-2025-0056", # adler (unmaintained, use adler2)
+    "RUSTSEC-2021-0139", # ansi_term (unmaintained)
+    "RUSTSEC-2024-0375", # atty (unmaintained)
+]
