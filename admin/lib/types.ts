@@ -8,11 +8,14 @@ type ServiceT = {
 	name: string;
 	slug: string;
 	bundle_id: string | null;
+	description: string | null;
 	domains: string[];
 	alternative_names: string[];
+	tags: string[];
 	verified: boolean;
 	category: CategoryT | null;
 	colors: { primary: string };
+	social_links: Record<string, string>;
 	logo_url: string;
 	ref_link: string | null;
 };

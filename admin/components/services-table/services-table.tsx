@@ -52,6 +52,10 @@ const ServicesTable = ({
 	});
 	const [showVerified, setShowVerified] = useState(() => searchParams.get('status') !== 'unverified');
 	const [showUnverified, setShowUnverified] = useState(() => searchParams.get('status') !== 'verified');
+	const [selectedTags, setSelectedTags] = useState<Set<string>>(() => {
+		const t = searchParams.get('tags');
+		return t ? new Set(t.split(',')) : new Set<string>();
+	});
 	const [pagination, setPagination] = useState(() => ({
 		pageIndex: Math.max(0, Number(searchParams.get('page') ?? 1) - 1),
 		pageSize: Number(searchParams.get('per_page')) || 50
@@ -82,6 +86,7 @@ const ServicesTable = ({
 		if (searchInput) params.set('q', searchInput);
 		const cats = columnFilters.find((f) => f.id === 'category')?.value as string[] | undefined;
 		if (cats?.length) params.set('categories', cats.join(','));
+		if (selectedTags.size > 0) params.set('tags', Array.from(selectedTags).join(','));
 		if (showVerified && !showUnverified) params.set('status', 'verified');
 		else if (!showVerified && showUnverified) params.set('status', 'unverified');
 		const s = sorting[0];
@@ -91,10 +96,13 @@ const ServicesTable = ({
 		}
 		const qs = params.toString();
 		window.history.replaceState(null, '', qs ? `/?${qs}` : '/');
-	}, [selected, pagination, mode, prefillSlug, searchInput, columnFilters, showVerified, showUnverified, sorting]);
+	}, [selected, pagination, mode, prefillSlug, searchInput, columnFilters, selectedTags, showVerified, showUnverified, sorting]);
 
-	const visibleData =
-		showVerified && showUnverified ? data : data.filter((s) => (s.verified ? showVerified : showUnverified));
+	const visibleData = data.filter((s) => {
+		if (s.verified ? !showVerified : !showUnverified) return false;
+		if (selectedTags.size > 0 && !s.tags.some((t) => selectedTags.has(t))) return false;
+		return true;
+	});
 	const verifiedCount = data.filter((s) => s.verified).length;
 
 	const categoryNames = categories.map((c) => c.title).sort();
@@ -105,8 +113,14 @@ const ServicesTable = ({
 	}
 	const selectedCategories = new Set((columnFilters.find((f) => f.id === 'category')?.value as string[]) ?? []);
 
+	const tagCounts: Record<string, number> = {};
+	for (const s of data) {
+		for (const t of s.tags) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
+	}
+	const tagNames = Object.keys(tagCounts).sort();
+
 	// Reset to page 0 when filters change
-	const filterKey = `${showVerified}|${showUnverified}|${globalFilter}|${JSON.stringify(columnFilters)}`;
+	const filterKey = `${showVerified}|${showUnverified}|${selectedTags.size}|${globalFilter}|${JSON.stringify(columnFilters)}`;
 	const prevFilterKey = useRef(filterKey);
 	if (filterKey !== prevFilterKey.current) {
 		prevFilterKey.current = filterKey;
@@ -132,6 +146,9 @@ const ServicesTable = ({
 				s.name.toLowerCase().includes(q) ||
 				s.slug.toLowerCase().includes(q) ||
 				s.domains.some((d) => d.toLowerCase().includes(q)) ||
+				s.alternative_names.some((a) => a.toLowerCase().includes(q)) ||
+				s.tags.some((t) => t.toLowerCase().includes(q)) ||
+				(s.bundle_id?.toLowerCase().includes(q) ?? false) ||
 				(s.category?.title.toLowerCase().includes(q) ?? false)
 			);
 		}
@@ -153,6 +170,7 @@ const ServicesTable = ({
 					<ServiceEditor
 						service={selected ?? undefined}
 						categories={categories}
+						allTags={tagNames}
 						prefillSlug={creating ? prefillSlug : undefined}
 						onClose={() => {
 							setSelected(null);
@@ -291,6 +309,22 @@ const ServicesTable = ({
 							/>
 						</FilterChip>
 
+						{tagNames.length > 0 && (
+							<FilterChip
+								label="Tags"
+								value={selectedTags.size > 0 ? `${selectedTags.size}` : undefined}
+								active={selectedTags.size > 0}
+								onClear={() => setSelectedTags(new Set())}
+							>
+								<CheckList
+									options={tagNames.map((t) => ({ value: t, label: t, count: tagCounts[t] ?? 0 }))}
+									selected={selectedTags}
+									searchable={tagNames.length > 6}
+									onChange={setSelectedTags}
+								/>
+							</FilterChip>
+						)}
+
 						<FilterChip
 							label="Verified"
 							active={showVerified && !showUnverified}
@@ -326,7 +360,7 @@ const ServicesTable = ({
 							}}
 						/>
 
-						{(searchInput || columnFilters.length > 0 || !showVerified || !showUnverified) && (
+						{(searchInput || columnFilters.length > 0 || selectedTags.size > 0 || !showVerified || !showUnverified) && (
 							<>
 								<div className="w-px h-6 bg-border mx-2" />
 								<button
@@ -335,6 +369,7 @@ const ServicesTable = ({
 										setSearchInput('');
 										setGlobalFilter('');
 										setColumnFilters([]);
+										setSelectedTags(new Set());
 										setShowVerified(true);
 										setShowUnverified(true);
 									}}

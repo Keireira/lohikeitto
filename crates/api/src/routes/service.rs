@@ -16,10 +16,13 @@ struct ServiceRow {
     name: String,
     slug: String,
     bundle_id: Option<String>,
+    description: Option<String>,
     domains: Vec<String>,
     alternative_names: Vec<String>,
+    tags: Vec<String>,
     verified: bool,
     colors: serde_json::Value,
+    social_links: serde_json::Value,
     ref_link: Option<String>,
     category_id: Option<Uuid>,
     category_title: Option<String>,
@@ -40,10 +43,13 @@ fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
         name: row.name,
         slug: row.slug,
         bundle_id: row.bundle_id,
+        description: row.description,
         domains: row.domains,
         alternative_names: row.alternative_names,
+        tags: row.tags,
         verified: row.verified,
         colors: row.colors,
+        social_links: row.social_links,
         logo_url,
         ref_link: row.ref_link,
         category: row
@@ -59,10 +65,13 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
         name: row.name,
         slug: String::new(),
         bundle_id: None,
+        description: None,
         domains: vec![row.domain],
         alternative_names: vec![],
+        tags: vec![],
         verified: false,
         colors: serde_json::json!({}),
+        social_links: serde_json::json!({}),
         logo_url: row.logo_url.unwrap_or_default(),
         ref_link: None,
         category: None,
@@ -92,8 +101,9 @@ pub async fn get(
     // Try as UUID
     if let Ok(id) = lookup.parse::<Uuid>() {
         if let Some(row) = sqlx::query_as::<_, ServiceRow>(
-            r#"SELECT s.id, s.name, s.slug, s.bundle_id, s.domains, s.alternative_names,
-                      s.verified, s.colors, s.ref_link,
+            r#"SELECT s.id, s.name, s.slug, s.bundle_id, s.description,
+                      s.domains, s.alternative_names, s.tags,
+                      s.verified, s.colors, s.social_links, s.ref_link,
                       c.id as category_id, c.title as category_title
                FROM services s
                LEFT JOIN categories c ON s.category_id = c.id
@@ -121,8 +131,9 @@ pub async fn get(
 
     // Treat as slug or domain
     if let Some(row) = sqlx::query_as::<_, ServiceRow>(
-        r#"SELECT s.id, s.name, s.slug, s.bundle_id, s.domains, s.alternative_names,
-                      s.verified, s.colors, s.ref_link,
+        r#"SELECT s.id, s.name, s.slug, s.bundle_id, s.description,
+                      s.domains, s.alternative_names, s.tags,
+                      s.verified, s.colors, s.social_links, s.ref_link,
                       c.id as category_id, c.title as category_title
            FROM services s
            LEFT JOIN categories c ON s.category_id = c.id
@@ -174,10 +185,13 @@ pub async fn get(
         name: result.name,
         slug: String::new(),
         bundle_id: None,
+        description: None,
         domains: vec![domain.clone()],
         alternative_names: vec![],
+        tags: vec![],
         verified: false,
         colors: serde_json::json!({}),
+        social_links: serde_json::json!({}),
         logo_url: result.logo_url,
         ref_link: None,
         category: None,

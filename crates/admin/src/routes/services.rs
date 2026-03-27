@@ -14,11 +14,14 @@ pub struct ServiceItem {
     pub name: String,
     pub slug: String,
     pub bundle_id: Option<String>,
+    pub description: Option<String>,
     pub domains: Vec<String>,
     pub alternative_names: Vec<String>,
+    pub tags: Vec<String>,
     pub verified: bool,
     pub category: Option<CategoryRef>,
     pub colors: serde_json::Value,
+    pub social_links: serde_json::Value,
     pub logo_url: String,
     pub ref_link: Option<String>,
 }
@@ -35,10 +38,13 @@ struct ServiceWithCategory {
     name: String,
     slug: String,
     bundle_id: Option<String>,
+    description: Option<String>,
     domains: Vec<String>,
     alternative_names: Vec<String>,
+    tags: Vec<String>,
     verified: bool,
     colors: serde_json::Value,
+    social_links: serde_json::Value,
     ref_link: Option<String>,
     category_id: Option<Uuid>,
     category_title: Option<String>,
@@ -56,8 +62,9 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
 
     let rows = sqlx::query_as::<sqlx::Postgres, ServiceWithCategory>(
         r#"
-        SELECT s.id, s.name, s.slug, s.bundle_id, s.domains, s.alternative_names,
-               s.verified, s.colors, s.ref_link,
+        SELECT s.id, s.name, s.slug, s.bundle_id, s.description,
+               s.domains, s.alternative_names, s.tags,
+               s.verified, s.colors, s.social_links, s.ref_link,
                c.id as category_id, c.title as category_title
         FROM services s
         LEFT JOIN categories c ON s.category_id = c.id
@@ -76,10 +83,13 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
                 name: r.name,
                 slug: r.slug,
                 bundle_id: r.bundle_id,
+                description: r.description,
                 domains: r.domains,
                 alternative_names: r.alternative_names,
+                tags: r.tags,
                 verified: r.verified,
                 colors: r.colors,
+                social_links: r.social_links,
                 logo_url,
                 ref_link: r.ref_link,
                 category: r
@@ -112,10 +122,13 @@ pub struct CreateService {
     pub name: String,
     pub slug: String,
     pub bundle_id: Option<String>,
+    pub description: Option<String>,
     pub domains: Vec<String>,
     pub alternative_names: Option<Vec<String>>,
+    pub tags: Option<Vec<String>>,
     pub category_id: Option<Uuid>,
     pub colors: serde_json::Value,
+    pub social_links: Option<serde_json::Value>,
     pub ref_link: Option<String>,
 }
 
@@ -124,20 +137,25 @@ pub async fn create(
     Json(req): Json<CreateService>,
 ) -> Result<Json<ServiceItem>, AdminError> {
     let alt_names = req.alternative_names.as_deref().unwrap_or(&[]);
+    let tags = req.tags.as_deref().unwrap_or(&[]);
+    let social_links = req.social_links.as_ref().cloned().unwrap_or(serde_json::json!({}));
     let id: Uuid = sqlx::query_scalar(
         r#"
-        INSERT INTO services (name, slug, bundle_id, domains, alternative_names, verified, category_id, colors, ref_link)
-        VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8)
+        INSERT INTO services (name, slug, bundle_id, description, domains, alternative_names, tags, verified, category_id, colors, social_links, ref_link)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, $11)
         RETURNING id
         "#,
     )
     .bind(&req.name)
     .bind(&req.slug)
     .bind(&req.bundle_id)
+    .bind(&req.description)
     .bind(&req.domains)
     .bind(alt_names)
+    .bind(tags)
     .bind(req.category_id)
     .bind(&req.colors)
+    .bind(&social_links)
     .bind(&req.ref_link)
     .fetch_one(&state.db)
     .await?;
@@ -165,10 +183,13 @@ pub async fn create(
         name: req.name,
         slug: req.slug,
         bundle_id: req.bundle_id,
+        description: req.description,
         domains: req.domains,
         alternative_names: req.alternative_names.unwrap_or_default(),
+        tags: req.tags.unwrap_or_default(),
         verified: false,
         colors: req.colors,
+        social_links,
         logo_url,
         ref_link: req.ref_link,
         category,
@@ -181,11 +202,14 @@ pub struct UpdateService {
     pub name: Option<String>,
     pub slug: Option<String>,
     pub bundle_id: Option<String>,
+    pub description: Option<String>,
     pub domains: Option<Vec<String>>,
     pub alternative_names: Option<Vec<String>>,
+    pub tags: Option<Vec<String>>,
     pub verified: Option<bool>,
     pub category_id: Option<Uuid>,
     pub colors: Option<serde_json::Value>,
+    pub social_links: Option<serde_json::Value>,
     pub ref_link: Option<String>,
 }
 
@@ -210,12 +234,20 @@ pub async fn update(
         sets.push(format!("bundle_id = ${idx}"));
         idx += 1;
     }
+    if req.description.is_some() {
+        sets.push(format!("description = ${idx}"));
+        idx += 1;
+    }
     if req.domains.is_some() {
         sets.push(format!("domains = ${idx}"));
         idx += 1;
     }
     if req.alternative_names.is_some() {
         sets.push(format!("alternative_names = ${idx}"));
+        idx += 1;
+    }
+    if req.tags.is_some() {
+        sets.push(format!("tags = ${idx}"));
         idx += 1;
     }
     if req.verified.is_some() {
@@ -228,6 +260,10 @@ pub async fn update(
     }
     if req.colors.is_some() {
         sets.push(format!("colors = ${idx}"));
+        idx += 1;
+    }
+    if req.social_links.is_some() {
+        sets.push(format!("social_links = ${idx}"));
         idx += 1;
     }
     if req.ref_link.is_some() {
@@ -252,10 +288,16 @@ pub async fn update(
     if let Some(v) = &req.bundle_id {
         query = query.bind(v);
     }
+    if let Some(v) = &req.description {
+        query = query.bind(v);
+    }
     if let Some(v) = &req.domains {
         query = query.bind(v);
     }
     if let Some(v) = &req.alternative_names {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.tags {
         query = query.bind(v);
     }
     if let Some(v) = &req.verified {
@@ -265,6 +307,9 @@ pub async fn update(
         query = query.bind(v);
     }
     if let Some(v) = &req.colors {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.social_links {
         query = query.bind(v);
     }
     if let Some(v) = &req.ref_link {

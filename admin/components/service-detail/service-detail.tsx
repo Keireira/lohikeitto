@@ -16,9 +16,28 @@ import Label from './label';
 import PreviewModal from './preview-modal';
 import Section from './section';
 
+const SOCIAL_PLATFORMS = [
+	{ key: 'x', label: 'X', placeholder: 'https://x.com/...' },
+	{ key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
+	{ key: 'github', label: 'GitHub', placeholder: 'https://github.com/...' },
+	{ key: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@...' },
+	{ key: 'discord', label: 'Discord', placeholder: 'https://discord.gg/...' },
+	{ key: 'telegram', label: 'Telegram', placeholder: 'https://t.me/...' },
+	{ key: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/...' },
+	{ key: 'bluesky', label: 'Bluesky', placeholder: 'https://bsky.app/profile/...' },
+	{ key: 'mastodon', label: 'Mastodon', placeholder: 'https://mastodon.social/@...' },
+	{ key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@...' },
+	{ key: 'reddit', label: 'Reddit', placeholder: 'https://reddit.com/r/...' },
+	{ key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/...' },
+	{ key: 'threads', label: 'Threads', placeholder: 'https://threads.net/@...' },
+	{ key: 'twitch', label: 'Twitch', placeholder: 'https://twitch.tv/...' },
+	{ key: 'vk', label: 'VK', placeholder: 'https://vk.com/...' },
+];
+
 export type Props = {
 	service?: ServiceT;
 	categories: CategoryT[];
+	allTags?: string[];
 	prefillSlug?: string;
 	onClose: () => void;
 	onUpdate: (updated: ServiceT) => void;
@@ -30,16 +49,19 @@ export const EMPTY_SERVICE: ServiceT = {
 	name: '',
 	slug: '',
 	bundle_id: null,
+	description: null,
 	domains: [],
 	alternative_names: [],
+	tags: [],
 	verified: false,
 	category: null,
 	colors: { primary: '#0053db' },
+	social_links: {},
 	logo_url: '',
 	ref_link: null
 };
 
-const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose, onUpdate, onDelete }: Props) => {
+const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefillSlug, onClose, onUpdate, onDelete }: Props) => {
 	const isCreateMode = !serviceProp;
 	const service = serviceProp ?? EMPTY_SERVICE;
 
@@ -52,8 +74,12 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 	const [color, setColor] = useState(service.colors.primary);
 	const defaultBundleId = (s: string) => (s ? `com.${s}.root` : '');
 	const [bundleId, setBundleId] = useState(service.bundle_id || defaultBundleId(prefillSlug || service.slug));
+	const [description, setDescription] = useState(service.description ?? '');
 	const [altNames, setAltNames] = useState<string[]>(service.alternative_names);
 	const [altNameInput, setAltNameInput] = useState('');
+	const [tags, setTags] = useState<string[]>(service.tags);
+	const [tagInput, setTagInput] = useState('');
+	const [socialLinks, setSocialLinks] = useState<Record<string, string>>(service.social_links);
 	const [refLink, setRefLink] = useState(service.ref_link ?? '');
 	const [verified, setVerified] = useState(service.verified);
 	const [saving, setSaving] = useState(false);
@@ -80,8 +106,12 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 		setDomains(service.domains);
 		setDomainInput('');
 		setBundleId(service.bundle_id || defaultBundleId(prefillSlug || service.slug));
+		setDescription(service.description ?? '');
 		setAltNames(service.alternative_names);
 		setAltNameInput('');
+		setTags(service.tags);
+		setTagInput('');
+		setSocialLinks(service.social_links);
 		setCategoryId(service.category?.id ?? '');
 		setColor(service.colors.primary);
 		setRefLink(service.ref_link ?? '');
@@ -204,8 +234,11 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 			(name !== service.name ||
 				slug !== service.slug ||
 				bundleId !== (service.bundle_id ?? '') ||
+				description !== (service.description ?? '') ||
 				JSON.stringify(domains) !== JSON.stringify(service.domains) ||
 				JSON.stringify(altNames) !== JSON.stringify(service.alternative_names) ||
+				JSON.stringify(tags) !== JSON.stringify(service.tags) ||
+				JSON.stringify(socialLinks) !== JSON.stringify(service.social_links) ||
 				categoryId !== (service.category?.id ?? '') ||
 				color !== service.colors.primary ||
 				refLink !== (service.ref_link ?? ''));
@@ -220,9 +253,13 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 		setSlug(prefillSlug || service.slug);
 		setCommittedSlug(prefillSlug || service.slug);
 		setBundleId(service.bundle_id || defaultBundleId(prefillSlug || service.slug));
+		setDescription(service.description ?? '');
 		setDomains(service.domains);
 		setAltNames(service.alternative_names);
 		setAltNameInput('');
+		setTags(service.tags);
+		setTagInput('');
+		setSocialLinks(service.social_links);
 		setDomainInput('');
 		setCategoryId(service.category?.id ?? '');
 		setColor(service.colors.primary);
@@ -246,10 +283,13 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 						name: name.trim(),
 						slug: slug.trim(),
 						bundle_id: bundleId || `com.${slug.trim()}.root`,
+						description: description || null,
 						domains,
 						alternative_names: altNames,
+						tags,
 						category_id: categoryId || null,
 						colors: { primary: color },
+						social_links: Object.keys(socialLinks).length > 0 ? socialLinks : null,
 						ref_link: refLink || null
 					})
 				});
@@ -261,8 +301,11 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 				if (name !== service.name) body.name = name;
 				if (slug !== service.slug) body.slug = slug;
 				if (bundleId !== (service.bundle_id ?? '')) body.bundle_id = bundleId || `com.${slug.trim()}.root`;
+				if (description !== (service.description ?? '')) body.description = description || null;
 				if (JSON.stringify(domains) !== JSON.stringify(service.domains)) body.domains = domains;
 				if (JSON.stringify(altNames) !== JSON.stringify(service.alternative_names)) body.alternative_names = altNames;
+				if (JSON.stringify(tags) !== JSON.stringify(service.tags)) body.tags = tags;
+				if (JSON.stringify(socialLinks) !== JSON.stringify(service.social_links)) body.social_links = socialLinks;
 				const newCatId = categoryId || null;
 				if (newCatId !== (service.category?.id ?? null)) body.category_id = newCatId;
 				if (color !== service.colors.primary) body.colors = { primary: color };
@@ -295,8 +338,11 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					name,
 					slug,
 					bundle_id: bundleId || `com.${slug.trim()}.root`,
+					description: description || null,
 					domains,
 					alternative_names: altNames,
+					tags,
+					social_links: socialLinks,
 					verified,
 					category: cat ? { id: cat.id, title: cat.title } : null,
 					colors: { primary: color },
@@ -517,6 +563,33 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					/>
 				</Section>
 
+				<Section title="Tags">
+					<div className="flex flex-wrap gap-1.5">
+						{tags.map((t) => (
+							<span key={t} className="group flex items-center rounded-full bg-muted/50 text-xs">
+								<span className="pl-3 py-1.5">{t}</span>
+								<button
+									type="button"
+									onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
+									className="text-muted-fg/30 hover:text-danger cursor-pointer px-2 py-1.5"
+								>
+									{'✕'}
+								</button>
+							</span>
+						))}
+					</div>
+					<TagInput
+						value={tagInput}
+						onChange={setTagInput}
+						allTags={allTags}
+						currentTags={tags}
+						onAdd={(added) => {
+							setTags((prev) => [...prev, ...added]);
+							setTagInput('');
+						}}
+					/>
+				</Section>
+
 				<Section title="Metadata">
 					<Label text="Category">
 						<select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="ed-input">
@@ -528,6 +601,15 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 							))}
 						</select>
 					</Label>
+					<Label text="Description">
+						<textarea
+							value={description}
+							onChange={(e) => setDescription(e.target.value)}
+							placeholder="Short service description..."
+							rows={3}
+							className="ed-input resize-y text-xs"
+						/>
+					</Label>
 					<Label text="Referral Link">
 						<input
 							value={refLink}
@@ -536,6 +618,33 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 							className="ed-input font-mono text-xs"
 						/>
 					</Label>
+				</Section>
+
+				<Section title="Social Links">
+					{SOCIAL_PLATFORMS.map((p) => {
+						const val = socialLinks[p.key] ?? '';
+						return (
+							<div key={p.key} className="flex items-center gap-2">
+								<span className="w-20 text-xs text-muted-fg truncate" title={p.key}>
+									{p.label}
+								</span>
+								<input
+									value={val}
+									onChange={(e) => {
+										const v = e.target.value;
+										setSocialLinks((prev) => {
+											const next = { ...prev };
+											if (v) next[p.key] = v;
+											else delete next[p.key];
+											return next;
+										});
+									}}
+									placeholder={p.placeholder}
+									className="ed-input font-mono text-xs flex-1"
+								/>
+							</div>
+						);
+					})}
 				</Section>
 
 				<Section title="Brand Color">
@@ -734,6 +843,107 @@ const ServiceEditor = ({ service: serviceProp, categories, prefillSlug, onClose,
 					border-color: var(--accent);
 				}
 			`}</style>
+		</div>
+	);
+};
+
+const fuzzyMatch = (query: string, target: string): boolean => {
+	let qi = 0;
+	for (let ti = 0; ti < target.length && qi < query.length; ti++) {
+		if (query[qi] === target[ti]) qi++;
+	}
+	return qi === query.length;
+};
+
+const TagInput = ({
+	value,
+	onChange,
+	allTags,
+	currentTags,
+	onAdd
+}: {
+	value: string;
+	onChange: (v: string) => void;
+	allTags: string[];
+	currentTags: string[];
+	onAdd: (tags: string[]) => void;
+}) => {
+	const [focused, setFocused] = useState(false);
+	const [highlightIdx, setHighlightIdx] = useState(0);
+	const ref = useRef<HTMLDivElement>(null);
+
+	const q = value.trim().toLowerCase();
+	const suggestions = q
+		? allTags
+				.filter((t) => !currentTags.includes(t) && fuzzyMatch(q, t))
+				.slice(0, 8)
+		: [];
+
+	const commit = (tag: string) => {
+		const clean = tag.trim().toLowerCase();
+		if (clean && !currentTags.includes(clean)) onAdd([clean]);
+		onChange('');
+		setHighlightIdx(0);
+	};
+
+	const commitInput = () => {
+		const parts = value
+			.split(',')
+			.map((s) => s.trim().toLowerCase())
+			.filter((s) => s && !currentTags.includes(s));
+		if (parts.length > 0) onAdd(parts);
+		onChange('');
+		setHighlightIdx(0);
+	};
+
+	return (
+		<div ref={ref} className="relative">
+			<input
+				value={value}
+				onChange={(e) => {
+					onChange(e.target.value);
+					setHighlightIdx(0);
+				}}
+				onFocus={() => setFocused(true)}
+				onBlur={() => setTimeout(() => setFocused(false), 150)}
+				onKeyDown={(e) => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						if (suggestions.length > 0 && focused) {
+							commit(suggestions[highlightIdx] ?? suggestions[0]);
+						} else {
+							commitInput();
+						}
+					} else if (e.key === 'ArrowDown') {
+						e.preventDefault();
+						setHighlightIdx((i) => Math.min(i + 1, suggestions.length - 1));
+					} else if (e.key === 'ArrowUp') {
+						e.preventDefault();
+						setHighlightIdx((i) => Math.max(i - 1, 0));
+					} else if (e.key === 'Escape') {
+						(e.target as HTMLInputElement).blur();
+					}
+				}}
+				placeholder="Add tags..."
+				className="ed-input text-xs"
+			/>
+			{focused && suggestions.length > 0 && (
+				<div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-lg border border-border bg-surface shadow-lg overflow-hidden">
+					{suggestions.map((t, i) => (
+						<button
+							key={t}
+							type="button"
+							onMouseDown={(e) => {
+								e.preventDefault();
+								commit(t);
+							}}
+							className={`w-full text-left px-3 py-2 text-xs cursor-pointer transition-colors ${i === highlightIdx ? 'bg-accent/10 text-accent' : 'text-foreground hover:bg-muted/50'}`}
+						>
+							{t}
+						</button>
+					))}
+				</div>
+			)}
 		</div>
 	);
 };

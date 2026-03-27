@@ -12,6 +12,19 @@ use std::fmt::Write;
 use crate::app::AdminState;
 use crate::error::AdminError;
 
+fn sql_text_array(vals: &[String]) -> String {
+    if vals.is_empty() {
+        return "'{}'".into();
+    }
+    format!(
+        "ARRAY[{}]::text[]",
+        vals.iter()
+            .map(|v| format!("'{}'", sql_escape(v)))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
 /// Export the entire database as SQL statements.
 pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, AdminError> {
     let mut sql = String::new();
@@ -60,7 +73,8 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
     // Export services
     let rows = sqlx::query(
         r#"
-        	SELECT id, name, slug, domains, verified, category_id, colors, ref_link
+        	SELECT id, name, slug, bundle_id, description, domains, alternative_names, tags,
+        	       verified, category_id, colors, social_links, ref_link
         	FROM services
         	ORDER BY name
         "#,
@@ -69,7 +83,7 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
     .await?;
 
     if !rows.is_empty() {
-        writeln!(sql, "-- Services\nINSERT INTO services (id, name, slug, domains, category_id, colors, ref_link) VALUES").unwrap();
+        writeln!(sql, "-- Services\nINSERT INTO services (id, name, slug, bundle_id, description, domains, alternative_names, tags, verified, category_id, colors, social_links, ref_link) VALUES").unwrap();
 
         let last_row = rows.last().expect("No last row");
         let last_row_id: uuid::Uuid = last_row.get("id");
@@ -78,33 +92,36 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
             let id: uuid::Uuid = r.get("id");
             let name: String = r.get("name");
             let slug: String = r.get("slug");
+            let bundle_id: Option<String> = r.get("bundle_id");
+            let description: Option<String> = r.get("description");
             let domains: Vec<String> = r.get("domains");
+            let alternative_names: Vec<String> = r.get("alternative_names");
+            let tags: Vec<String> = r.get("tags");
             let verified: bool = r.get("verified");
             let category_id: Option<uuid::Uuid> = r.get("category_id");
             let colors: serde_json::Value = r.get("colors");
+            let social_links: serde_json::Value = r.get("social_links");
             let ref_link: Option<String> = r.get("ref_link");
             let is_last_row = last_row_id == id;
 
-            let domains_sql = format!(
-                "ARRAY[{}]::text[]",
-                domains
-                    .iter()
-                    .map(|d| format!("'{}'", sql_escape(d)))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            );
+            let domains_sql = sql_text_array(&domains);
+            let alt_names_sql = sql_text_array(&alternative_names);
+            let tags_sql = sql_text_array(&tags);
             let cat_sql = match category_id {
                 Some(c) => format!("'{c}'"),
                 None => "NULL".into(),
             };
-            let ref_sql = sql_opt(&ref_link);
 
             writeln!(
                 sql,
-                "  ('{id}', '{}', '{}', {domains_sql}, {verified}, {cat_sql}, '{}', {ref_sql}){}",
+                "  ('{id}', '{}', '{}', {}, {}, {domains_sql}, {alt_names_sql}, {tags_sql}, {verified}, {cat_sql}, '{}', '{}', {}){}",
                 sql_escape(&name),
                 sql_escape(&slug),
+                sql_opt(&bundle_id),
+                sql_opt(&description),
                 sql_escape(&colors.to_string()),
+                sql_escape(&social_links.to_string()),
+                sql_opt(&ref_link),
                 if is_last_row { ";" } else { "," },
             )
             .unwrap();
