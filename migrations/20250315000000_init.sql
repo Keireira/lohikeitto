@@ -61,7 +61,7 @@ INSERT INTO categories (id, title) VALUES
 -- Services
 -- ============================================================
 
-INSERT INTO services (id, name, slug, domains, category_id, colors, ref_link) VALUES
+INSERT INTO services (id, name, slug, domains, verified, category_id, colors, ref_link) VALUES
   ('55000001-0003-4000-8000-000000000077', '1+1 video', 'one-plus-one-video', ARRAY['1plus1.video']::text[], true, '44444444-0000-0000-0000-000000000001', '{"primary":"#ff0003"}', NULL),
   ('55000011-0001-4000-8000-000000000028', '1Blocker', '1blocker', ARRAY['1blocker.com']::text[], true, '44444444-0000-0000-0000-000000000011', '{"primary":"#05c57b"}', NULL),
   ('55000011-0001-4000-8000-000000000005', '1Password', 'one-1-password', ARRAY['1password.com']::text[], true, '44444444-0000-0000-0000-000000000011', '{"primary":"#1a285e"}', NULL),
