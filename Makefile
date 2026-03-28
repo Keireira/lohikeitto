@@ -53,16 +53,20 @@ ps: ## Show running containers
 # ─── Code Quality ───────────────────────────────────
 
 lint: ## Run all linters (biome + clippy)
-	pnpm biome check .
+	cd ./docs && pnpm biome check .
+	cd ./admin && pnpm biome check .
 	cargo clippy --workspace -- -D warnings
 
 format: ## Format all code (biome + cargo fmt)
-	pnpm biome check --fix --unsafe .
-	pnpm biome format --write .
+	cd ./docs && pnpm biome check --fix --unsafe .
+	cd ./docs && pnpm biome format --write .
+	cd ./admin && pnpm biome check --fix --unsafe .
+	cd ./admin && pnpm biome format --write .
 	cargo fmt --all
 
 check: ## Run all checks (lint + cargo check + clippy)
-	pnpm biome check .
+	cd ./docs && pnpm biome check .
+	cd ./admin && pnpm biome check .
 	cargo check --workspace
 	cargo clippy --workspace -- -D warnings
 
