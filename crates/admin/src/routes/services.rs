@@ -28,7 +28,7 @@ pub struct ServiceItem {
 
 #[derive(Debug, Serialize)]
 pub struct CategoryRef {
-    pub id: Uuid,
+    pub slug: String,
     pub title: String,
 }
 
@@ -46,13 +46,13 @@ struct ServiceWithCategory {
     colors: serde_json::Value,
     social_links: serde_json::Value,
     ref_link: Option<String>,
-    category_id: Option<Uuid>,
+    category_slug: Option<String>,
     category_title: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct CategoryItem {
-    pub id: Uuid,
+    pub slug: String,
     pub title: String,
 }
 
@@ -65,9 +65,9 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
         SELECT s.id, s.name, s.slug, s.bundle_id, s.description,
                s.domains, s.alternative_names, s.tags,
                s.verified, s.colors, s.social_links, s.ref_link,
-               c.id as category_id, c.title as category_title
+               c.slug as category_slug, c.title as category_title
         FROM services s
-        LEFT JOIN categories c ON s.category_id = c.id
+        LEFT JOIN categories c ON s.category_slug = c.slug
         ORDER BY s.name
         "#,
     )
@@ -93,9 +93,9 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<ServiceIte
                 logo_url,
                 ref_link: r.ref_link,
                 category: r
-                    .category_id
+                    .category_slug
                     .zip(r.category_title)
-                    .map(|(id, title)| CategoryRef { id, title }),
+                    .map(|(slug, title)| CategoryRef { slug, title }),
             }
         })
         .collect();
@@ -108,7 +108,7 @@ pub async fn list_categories(
     State(state): State<AdminState>,
 ) -> Result<Json<Vec<CategoryItem>>, AdminError> {
     let rows = sqlx::query_as::<sqlx::Postgres, CategoryItem>(
-        "SELECT id, title FROM categories ORDER BY title",
+        "SELECT slug, title FROM categories ORDER BY title",
     )
     .fetch_all(&state.db)
     .await?;
@@ -126,7 +126,7 @@ pub struct CreateService {
     pub domains: Vec<String>,
     pub alternative_names: Option<Vec<String>>,
     pub tags: Option<Vec<String>>,
-    pub category_id: Option<Uuid>,
+    pub category_slug: Option<String>,
     pub colors: serde_json::Value,
     pub social_links: Option<serde_json::Value>,
     pub ref_link: Option<String>,
@@ -141,7 +141,7 @@ pub async fn create(
     let social_links = req.social_links.as_ref().cloned().unwrap_or(serde_json::json!({}));
     let id: Uuid = sqlx::query_scalar(
         r#"
-        INSERT INTO services (name, slug, bundle_id, description, domains, alternative_names, tags, verified, category_id, colors, social_links, ref_link)
+        INSERT INTO services (name, slug, bundle_id, description, domains, alternative_names, tags, verified, category_slug, colors, social_links, ref_link)
         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, $11)
         RETURNING id
         "#,
@@ -153,7 +153,7 @@ pub async fn create(
     .bind(&req.domains)
     .bind(alt_names)
     .bind(tags)
-    .bind(req.category_id)
+    .bind(&req.category_slug)
     .bind(&req.colors)
     .bind(&social_links)
     .bind(&req.ref_link)
@@ -163,15 +163,15 @@ pub async fn create(
     let s3_base_url = &state.config.s3_base_url;
     let logo_url = format!("{}/logos/{}.webp", s3_base_url, req.slug);
 
-    let category = if let Some(cat_id) = req.category_id {
+    let category = if let Some(cat_slug) = &req.category_slug {
         sqlx::query_as::<sqlx::Postgres, CategoryItem>(
-            "SELECT id, title FROM categories WHERE id = $1",
+            "SELECT slug, title FROM categories WHERE slug = $1",
         )
-        .bind(cat_id)
+        .bind(cat_slug)
         .fetch_optional(&state.db)
         .await?
         .map(|c| CategoryRef {
-            id: c.id,
+            slug: c.slug,
             title: c.title,
         })
     } else {
@@ -207,7 +207,7 @@ pub struct UpdateService {
     pub alternative_names: Option<Vec<String>>,
     pub tags: Option<Vec<String>>,
     pub verified: Option<bool>,
-    pub category_id: Option<Uuid>,
+    pub category_slug: Option<String>,
     pub colors: Option<serde_json::Value>,
     pub social_links: Option<serde_json::Value>,
     pub ref_link: Option<String>,
@@ -254,8 +254,8 @@ pub async fn update(
         sets.push(format!("verified = ${idx}"));
         idx += 1;
     }
-    if req.category_id.is_some() {
-        sets.push(format!("category_id = ${idx}"));
+    if req.category_slug.is_some() {
+        sets.push(format!("category_slug = ${idx}"));
         idx += 1;
     }
     if req.colors.is_some() {
@@ -303,7 +303,7 @@ pub async fn update(
     if let Some(v) = &req.verified {
         query = query.bind(v);
     }
-    if let Some(v) = &req.category_id {
+    if let Some(v) = &req.category_slug {
         query = query.bind(v);
     }
     if let Some(v) = &req.colors {
@@ -340,6 +340,7 @@ pub async fn delete(
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCategory {
+    pub slug: String,
     pub title: String,
 }
 
@@ -347,52 +348,70 @@ pub async fn create_category(
     State(state): State<AdminState>,
     Json(req): Json<CreateCategory>,
 ) -> Result<Json<CategoryItem>, AdminError> {
-    let id = Uuid::new_v4();
-    sqlx::query("INSERT INTO categories (id, title) VALUES ($1, $2)")
-        .bind(id)
+    sqlx::query("INSERT INTO categories (slug, title) VALUES ($1, $2)")
+        .bind(&req.slug)
         .bind(&req.title)
         .execute(&state.db)
         .await?;
 
     Ok(Json(CategoryItem {
-        id,
+        slug: req.slug,
         title: req.title,
     }))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateCategory {
-    pub title: String,
+    pub slug: Option<String>,
+    pub title: Option<String>,
 }
 
 pub async fn update_category(
     State(state): State<AdminState>,
-    Path(id): Path<Uuid>,
+    Path(slug): Path<String>,
     Json(req): Json<UpdateCategory>,
 ) -> Result<Json<serde_json::Value>, AdminError> {
-    sqlx::query("UPDATE categories SET title = $1 WHERE id = $2")
-        .bind(&req.title)
-        .bind(id)
-        .execute(&state.db)
-        .await?;
+    let mut sets = Vec::new();
+    let mut idx = 2u32; // $1 is slug
+    if req.slug.is_some() {
+        sets.push(format!("slug = ${idx}"));
+        idx += 1;
+    }
+    if req.title.is_some() {
+        sets.push(format!("title = ${idx}"));
+        idx += 1;
+    }
+    if sets.is_empty() {
+        return Ok(Json(serde_json::json!({ "updated": false })));
+    }
+    let sql = format!("UPDATE categories SET {} WHERE slug = $1", sets.join(", "));
+    let mut query = sqlx::query(&sql).bind(&slug);
+    if let Some(v) = &req.slug {
+        query = query.bind(v);
+    }
+    if let Some(v) = &req.title {
+        query = query.bind(v);
+    }
+    let _ = idx;
+    query.execute(&state.db).await?;
 
-    Ok(Json(serde_json::json!({ "updated": id })))
+    Ok(Json(serde_json::json!({ "updated": slug })))
 }
 
 pub async fn delete_category(
     State(state): State<AdminState>,
-    Path(id): Path<Uuid>,
+    Path(slug): Path<String>,
 ) -> Result<Json<serde_json::Value>, AdminError> {
     // Unassign services first
-    sqlx::query("UPDATE services SET category_id = NULL WHERE category_id = $1")
-        .bind(id)
+    sqlx::query("UPDATE services SET category_slug = NULL WHERE category_slug = $1")
+        .bind(&slug)
         .execute(&state.db)
         .await?;
 
-    sqlx::query("DELETE FROM categories WHERE id = $1")
-        .bind(id)
+    sqlx::query("DELETE FROM categories WHERE slug = $1")
+        .bind(&slug)
         .execute(&state.db)
         .await?;
 
-    Ok(Json(serde_json::json!({ "deleted": id })))
+    Ok(Json(serde_json::json!({ "deleted": slug })))
 }

@@ -30,7 +30,7 @@ const SOCIAL_PLATFORMS = [
 	{ key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/...' },
 	{ key: 'threads', label: 'Threads', placeholder: 'https://threads.net/@...' },
 	{ key: 'twitch', label: 'Twitch', placeholder: 'https://twitch.tv/...' },
-	{ key: 'vk', label: 'VK', placeholder: 'https://vk.com/...' },
+	{ key: 'vk', label: 'VK', placeholder: 'https://vk.com/...' }
 ];
 
 export type Props = {
@@ -60,7 +60,15 @@ export const EMPTY_SERVICE: ServiceT = {
 	ref_link: null
 };
 
-const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefillSlug, onClose, onUpdate, onDelete }: Props) => {
+const ServiceEditor = ({
+	service: serviceProp,
+	categories,
+	allTags = [],
+	prefillSlug,
+	onClose,
+	onUpdate,
+	onDelete
+}: Props) => {
 	const isCreateMode = !serviceProp;
 	const service = serviceProp ?? EMPTY_SERVICE;
 
@@ -69,7 +77,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 	const [committedSlug, setCommittedSlug] = useState(prefillSlug || service.slug);
 	const [domains, setDomains] = useState<string[]>(service.domains);
 	const [domainInput, setDomainInput] = useState('');
-	const [categoryId, setCategoryId] = useState(service.category?.id ?? '');
+	const [categorySlug, setCategorySlug] = useState(service.category?.slug ?? '');
 	const [color, setColor] = useState(service.colors.primary);
 	const defaultBundleId = (s: string) => (s ? `com.${s}.root` : '');
 	const [bundleId, setBundleId] = useState(service.bundle_id || defaultBundleId(prefillSlug || service.slug));
@@ -111,7 +119,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 		setTags(service.tags);
 		setTagInput('');
 		setSocialLinks(service.social_links);
-		setCategoryId(service.category?.id ?? '');
+		setCategorySlug(service.category?.slug ?? '');
 		setColor(service.colors.primary);
 		setRefLink(service.ref_link ?? '');
 		setVerified(service.verified);
@@ -238,7 +246,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 				JSON.stringify(altNames) !== JSON.stringify(service.alternative_names) ||
 				JSON.stringify(tags) !== JSON.stringify(service.tags) ||
 				JSON.stringify(socialLinks) !== JSON.stringify(service.social_links) ||
-				categoryId !== (service.category?.id ?? '') ||
+				categorySlug !== (service.category?.slug ?? '') ||
 				color !== service.colors.primary ||
 				refLink !== (service.ref_link ?? ''));
 
@@ -260,7 +268,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 		setTagInput('');
 		setSocialLinks(service.social_links);
 		setDomainInput('');
-		setCategoryId(service.category?.id ?? '');
+		setCategorySlug(service.category?.slug ?? '');
 		setColor(service.colors.primary);
 		setRefLink(service.ref_link ?? '');
 		setVerified(service.verified);
@@ -286,7 +294,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 						domains,
 						alternative_names: altNames,
 						tags,
-						category_id: categoryId || null,
+						category_slug: categorySlug || null,
 						colors: { primary: color },
 						social_links: Object.keys(socialLinks).length > 0 ? socialLinks : null,
 						ref_link: refLink || null
@@ -305,8 +313,8 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 				if (JSON.stringify(altNames) !== JSON.stringify(service.alternative_names)) body.alternative_names = altNames;
 				if (JSON.stringify(tags) !== JSON.stringify(service.tags)) body.tags = tags;
 				if (JSON.stringify(socialLinks) !== JSON.stringify(service.social_links)) body.social_links = socialLinks;
-				const newCatId = categoryId || null;
-				if (newCatId !== (service.category?.id ?? null)) body.category_id = newCatId;
+				const newCatSlug = categorySlug || null;
+				if (newCatSlug !== (service.category?.slug ?? null)) body.category_slug = newCatSlug;
 				if (color !== service.colors.primary) body.colors = { primary: color };
 				if (refLink !== (service.ref_link ?? '')) body.ref_link = refLink || null;
 				if (Object.keys(body).length === 0) {
@@ -331,7 +339,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 					if (renameRes?.ok) toast.info(`Logo renamed to ${slug}.webp`);
 				}
 
-				const cat = categories.find((c) => c.id === categoryId) ?? null;
+				const cat = categories.find((c) => c.slug === categorySlug) ?? null;
 				onUpdate({
 					...service,
 					name,
@@ -343,7 +351,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 					tags,
 					social_links: socialLinks,
 					verified,
-					category: cat ? { id: cat.id, title: cat.title } : null,
+					category: cat ? { slug: cat.slug, title: cat.title } : null,
 					colors: { primary: color },
 					ref_link: refLink || null,
 					logo_url: service.logo_url.replace(/\/[^/]+\.webp$/, `/${slug}.webp`)
@@ -590,10 +598,10 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 
 				<Section title="Metadata">
 					<Label text="Category">
-						<select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="ed-input">
+						<select value={categorySlug} onChange={(e) => setCategorySlug(e.target.value)} className="ed-input">
 							<option value="">None</option>
 							{categories.map((c) => (
-								<option key={c.id} value={c.id}>
+								<option key={c.slug} value={c.slug}>
 									{c.title}
 								</option>
 							))}
@@ -803,11 +811,7 @@ const ServiceEditor = ({ service: serviceProp, categories, allTags = [], prefill
 
 			{/* Social Studio */}
 			{socialStudioOpen && (
-				<SocialStudio
-					links={socialLinks}
-					onChange={setSocialLinks}
-					onClose={() => setSocialStudioOpen(false)}
-				/>
+				<SocialStudio links={socialLinks} onChange={setSocialLinks} onClose={() => setSocialStudioOpen(false)} />
 			)}
 
 			{/* Color Studio */}
@@ -868,11 +872,7 @@ const TagInput = ({
 	const ref = useRef<HTMLDivElement>(null);
 
 	const q = value.trim().toLowerCase();
-	const suggestions = q
-		? allTags
-				.filter((t) => !currentTags.includes(t) && fuzzyMatch(q, t))
-				.slice(0, 8)
-		: [];
+	const suggestions = q ? allTags.filter((t) => !currentTags.includes(t) && fuzzyMatch(q, t)).slice(0, 8) : [];
 
 	const commit = (tag: string) => {
 		const clean = tag.trim().toLowerCase();

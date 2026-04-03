@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::app::AppState;
 use crate::dto::internal::ErrorResponse;
-use crate::dto::service::{CategoryRef, ServiceResponse};
+use crate::dto::service::ServiceResponse;
 use crate::error::ApiError;
 use crate::services::search as search_service;
 
@@ -24,8 +24,7 @@ struct ServiceRow {
     colors: serde_json::Value,
     social_links: serde_json::Value,
     ref_link: Option<String>,
-    category_id: Option<Uuid>,
-    category_title: Option<String>,
+    category_slug: Option<String>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -38,6 +37,7 @@ struct LimbusRow {
 
 fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
     let logo_url = format!("{}/logos/{}.webp", s3_base, row.slug);
+
     ServiceResponse {
         id: row.id,
         name: row.name,
@@ -52,10 +52,7 @@ fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
         social_links: row.social_links,
         logo_url,
         ref_link: row.ref_link,
-        category: row
-            .category_id
-            .zip(row.category_title)
-            .map(|(id, title)| CategoryRef { id, title }),
+        category: row.category_slug,
     }
 }
 
@@ -101,13 +98,12 @@ pub async fn get(
     // Try as UUID
     if let Ok(id) = lookup.parse::<Uuid>() {
         if let Some(row) = sqlx::query_as::<_, ServiceRow>(
-            r#"SELECT s.id, s.name, s.slug, s.bundle_id, s.description,
-                      s.domains, s.alternative_names, s.tags,
-                      s.verified, s.colors, s.social_links, s.ref_link,
-                      c.id as category_id, c.title as category_title
-               FROM services s
-               LEFT JOIN categories c ON s.category_id = c.id
-               WHERE s.id = $1"#,
+            r#"SELECT id, name, slug, bundle_id, description,
+                      domains, alternative_names, tags,
+                      verified, colors, social_links, ref_link,
+                      category_slug
+               FROM services
+               WHERE id = $1"#,
         )
         .bind(id)
         .fetch_optional(&state.db)
@@ -131,14 +127,13 @@ pub async fn get(
 
     // Treat as slug or domain
     if let Some(row) = sqlx::query_as::<_, ServiceRow>(
-        r#"SELECT s.id, s.name, s.slug, s.bundle_id, s.description,
-                      s.domains, s.alternative_names, s.tags,
-                      s.verified, s.colors, s.social_links, s.ref_link,
-                      c.id as category_id, c.title as category_title
-           FROM services s
-           LEFT JOIN categories c ON s.category_id = c.id
-           WHERE s.slug = $1 OR s.bundle_id = $1 OR $1 = ANY(s.domains)
-              OR EXISTS (SELECT 1 FROM unnest(s.alternative_names) a WHERE a ILIKE $1)"#,
+        r#"SELECT id, name, slug, bundle_id, description,
+                      domains, alternative_names, tags,
+                      verified, colors, social_links, ref_link,
+                      category_slug
+           FROM services
+           WHERE slug = $1 OR bundle_id = $1 OR $1 = ANY(domains)
+              OR EXISTS (SELECT 1 FROM unnest(alternative_names) a WHERE a ILIKE $1)"#,
     )
     .bind(&lookup)
     .fetch_optional(&state.db)
