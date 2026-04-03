@@ -1,5 +1,5 @@
 type CategoryT = {
-	id: string;
+	slug: string;
 	title: string;
 };
 

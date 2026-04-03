@@ -66,7 +66,7 @@ const LimbusTable = ({ data: initialData }: { data: LimbusT[] }) => {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					slug,
-					category_id: null,
+					category_slug: null,
 					colors: { primary: '#888888' }
 				})
 			});

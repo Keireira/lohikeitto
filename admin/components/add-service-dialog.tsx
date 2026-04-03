@@ -19,7 +19,7 @@ const AddServiceDialog = ({ mode, categories, onClose, onCreated }: AddServiceDi
 	const [domain, setDomain] = useState('');
 	const [slug, setSlug] = useState('');
 	const [color, setColor] = useState('#0053db');
-	const [categoryId, setCategoryId] = useState('');
+	const [categorySlug, setCategorySlug] = useState('');
 	const [source, setSource] = useState('admin');
 	const [saving, setSaving] = useState(false);
 
@@ -40,7 +40,7 @@ const AddServiceDialog = ({ mode, categories, onClose, onCreated }: AddServiceDi
 						name: name.trim(),
 						slug: slug.trim() || autoSlug,
 						domains: [domain.trim()],
-						category_id: categoryId || null,
+						category_slug: categorySlug || null,
 						colors: { primary: color },
 						ref_link: null
 					})
@@ -131,13 +131,13 @@ const AddServiceDialog = ({ mode, categories, onClose, onCreated }: AddServiceDi
 								<div className="flex-1">
 									<label className="text-xs font-medium text-muted-fg block mb-1.5">Category</label>
 									<select
-										value={categoryId}
-										onChange={(e) => setCategoryId(e.target.value)}
+										value={categorySlug}
+										onChange={(e) => setCategorySlug(e.target.value)}
 										className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent/50 cursor-pointer"
 									>
 										<option value="">None</option>
 										{categories?.map((c) => (
-											<option key={c.id} value={c.id}>
+											<option key={c.slug} value={c.slug}>
 												{c.title}
 											</option>
 										))}

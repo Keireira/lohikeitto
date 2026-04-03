@@ -33,9 +33,9 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
     writeln!(sql, "-- Generated at {}\n", chrono::Utc::now().to_rfc3339()).unwrap();
 
     // Export categories
-    let cats: Vec<(uuid::Uuid, String)> = sqlx::query(
+    let cats: Vec<(String, String)> = sqlx::query(
         r#"
-        	SELECT id, title
+        	SELECT slug, title
         	FROM categories
         	ORDER BY title
         "#,
@@ -43,24 +43,25 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
     .fetch_all(&state.db)
     .await?
     .iter()
-    .map(|r| (r.get("id"), r.get("title")))
+    .map(|r| (r.get("slug"), r.get("title")))
     .collect();
 
     if !cats.is_empty() {
         writeln!(
             sql,
-            "-- Categories\nINSERT INTO categories (id, title) VALUES"
+            "-- Categories\nINSERT INTO categories (slug, title) VALUES"
         )
         .unwrap();
 
-        let (last_row_id, _) = cats.last().expect("No last row");
+        let (last_row_slug, _) = cats.last().expect("No last row");
 
-        for (id, title) in &cats {
-            let is_last_row = last_row_id == id;
+        for (slug, title) in &cats {
+            let is_last_row = last_row_slug == slug;
 
             writeln!(
                 sql,
-                "  ('{id}', '{}'){}",
+                "  ('{}', '{}'){}",
+                sql_escape(slug),
                 sql_escape(title),
                 if is_last_row { ";" } else { "," },
             )
@@ -74,7 +75,7 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
     let rows = sqlx::query(
         r#"
         	SELECT id, name, slug, bundle_id, description, domains, alternative_names, tags,
-        	       verified, category_id, colors, social_links, ref_link
+        	       verified, category_slug, colors, social_links, ref_link
         	FROM services
         	ORDER BY name
         "#,
@@ -83,7 +84,7 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
     .await?;
 
     if !rows.is_empty() {
-        writeln!(sql, "-- Services\nINSERT INTO services (id, name, slug, bundle_id, description, domains, alternative_names, tags, verified, category_id, colors, social_links, ref_link) VALUES").unwrap();
+        writeln!(sql, "-- Services\nINSERT INTO services (id, name, slug, bundle_id, description, domains, alternative_names, tags, verified, category_slug, colors, social_links, ref_link) VALUES").unwrap();
 
         let last_row = rows.last().expect("No last row");
         let last_row_id: uuid::Uuid = last_row.get("id");
@@ -98,7 +99,7 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
             let alternative_names: Vec<String> = r.get("alternative_names");
             let tags: Vec<String> = r.get("tags");
             let verified: bool = r.get("verified");
-            let category_id: Option<uuid::Uuid> = r.get("category_id");
+            let category_slug: Option<String> = r.get("category_slug");
             let colors: serde_json::Value = r.get("colors");
             let social_links: serde_json::Value = r.get("social_links");
             let ref_link: Option<String> = r.get("ref_link");
@@ -107,8 +108,8 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
             let domains_sql = sql_text_array(&domains);
             let alt_names_sql = sql_text_array(&alternative_names);
             let tags_sql = sql_text_array(&tags);
-            let cat_sql = match category_id {
-                Some(c) => format!("'{c}'"),
+            let cat_sql = match category_slug {
+                Some(ref c) => format!("'{}'", sql_escape(c)),
                 None => "NULL".into(),
             };
 

@@ -116,6 +116,49 @@
           }
         }
       }
+    },
+    "/service/{lookup}": {
+      "get": {
+        "tags": [
+          "Services"
+        ],
+        "summary": "Get a service by ID or domain",
+        "description": "Look up a service by UUID or domain name. If not found locally, searches external sources (Brandfetch, logo.dev) and adds the result to the approval queue.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "lookup",
+            "in": "path",
+            "description": "Service UUID or domain name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Service not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -228,6 +271,98 @@
           "name": "AdGuard",
           "source": "local"
         }
+      },
+      "ServiceResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "domains",
+          "alternative_names",
+          "tags",
+          "verified",
+          "colors",
+          "social_links",
+          "logo_url"
+        ],
+        "properties": {
+          "alternative_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bundle_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "colors": {},
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "logo_url": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ref_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slug": {
+            "type": "string"
+          },
+          "social_links": {},
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "category": "security",
+          "colors": {
+            "primary": "#000000"
+          },
+          "domains": [
+            "adguard.com"
+          ],
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "logo_url": "https://s3.uha.app/logos/adguard.webp",
+          "name": "AdGuard",
+          "ref_link": null,
+          "slug": "adguard",
+          "verified": true
+        }
       }
     }
   },
@@ -235,6 +370,10 @@
     {
       "name": "Search",
       "description": "Service search across local and external sources"
+    },
+    {
+      "name": "Services",
+      "description": "Service details"
     },
     {
       "name": "System",

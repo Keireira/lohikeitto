@@ -105,7 +105,7 @@ pub async fn remove(
 #[derive(Debug, Deserialize)]
 pub struct ApproveRequest {
     pub slug: String,
-    pub category_id: Option<Uuid>,
+    pub category_slug: Option<String>,
     pub colors: serde_json::Value,
 }
 
@@ -124,14 +124,14 @@ pub async fn approve(
     // Insert into services
     sqlx::query(
         r#"
-        INSERT INTO services (name, slug, domains, verified, category_id, colors)
+        INSERT INTO services (name, slug, domains, verified, category_slug, colors)
         VALUES ($1, $2, $3, true, $4, $5)
         "#,
     )
     .bind(&limbus.name)
     .bind(&req.slug)
     .bind(std::slice::from_ref(&limbus.domain))
-    .bind(req.category_id)
+    .bind(&req.category_slug)
     .bind(&req.colors)
     .execute(&state.db)
     .await?;

@@ -68,10 +68,11 @@ const CategoriesManager = ({
 }) => {
 	const [categories, setCategories] = useState(initialCategories);
 	const [services] = useState(initialServices);
-	const [selectedId, setSelectedId] = useState<string | null>(categories[0]?.id ?? null);
-	const [editingId, setEditingId] = useState<string | null>(null);
+	const [selectedSlug, setSelectedSlug] = useState<string | null>(categories[0]?.slug ?? null);
+	const [editingSlug, setEditingSlug] = useState<string | null>(null);
 	const [editTitle, setEditTitle] = useState('');
 	const [newTitle, setNewTitle] = useState('');
+	const [newSlug, setNewSlug] = useState('');
 	const [addingNew, setAddingNew] = useState(false);
 	const [saving, setSaving] = useState(false);
 
@@ -79,35 +80,37 @@ const CategoriesManager = ({
 		const map = new Map<string, ServiceT[]>();
 		for (const s of services) {
 			if (s.category) {
-				const list = map.get(s.category.id) ?? [];
+				const list = map.get(s.category.slug) ?? [];
 				list.push(s);
-				map.set(s.category.id, list);
+				map.set(s.category.slug, list);
 			}
 		}
 		return map;
 	})();
 
 	const uncategorized = services.filter((s) => !s.category);
-	const selectedCat = categories.find((c) => c.id === selectedId) ?? null;
+	const selectedCat = categories.find((c) => c.slug === selectedSlug) ?? null;
 	const selectedServices =
-		selectedId === '__uncategorized' ? uncategorized : selectedId ? (servicesByCategory.get(selectedId) ?? []) : [];
+		selectedSlug === '__uncategorized' ? uncategorized : selectedSlug ? (servicesByCategory.get(selectedSlug) ?? []) : [];
 
 	const handleCreate = async () => {
 		const title = newTitle.trim();
+		const slug = newSlug.trim() || title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 		if (!title || saving) return;
 		setSaving(true);
 		try {
 			const res = await fetch(`${API_URL}/categories`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ title })
+				body: JSON.stringify({ slug, title })
 			});
 			if (!res.ok) throw new Error(`${res.status}`);
 			const created: CategoryT = await res.json();
 			setCategories((prev) => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
 			setNewTitle('');
+			setNewSlug('');
 			setAddingNew(false);
-			setSelectedId(created.id);
+			setSelectedSlug(created.slug);
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : 'Failed to create');
 		} finally {
@@ -115,21 +118,21 @@ const CategoriesManager = ({
 		}
 	};
 
-	const handleRename = async (id: string) => {
+	const handleRename = async (slug: string) => {
 		const title = editTitle.trim();
 		if (!title || saving) return;
 		setSaving(true);
 		try {
-			const res = await fetch(`${API_URL}/categories/${id}`, {
+			const res = await fetch(`${API_URL}/categories/${slug}`, {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ title })
 			});
 			if (!res.ok) throw new Error(`${res.status}`);
 			setCategories((prev) =>
-				prev.map((c) => (c.id === id ? { ...c, title } : c)).sort((a, b) => a.title.localeCompare(b.title))
+				prev.map((c) => (c.slug === slug ? { ...c, title } : c)).sort((a, b) => a.title.localeCompare(b.title))
 			);
-			setEditingId(null);
+			setEditingSlug(null);
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : 'Failed to rename');
 		} finally {
@@ -137,8 +140,8 @@ const CategoriesManager = ({
 		}
 	};
 
-	const handleDelete = async (id: string, title: string) => {
-		const count = servicesByCategory.get(id)?.length ?? 0;
+	const handleDelete = async (slug: string, title: string) => {
+		const count = servicesByCategory.get(slug)?.length ?? 0;
 		const msg =
 			count > 0
 				? `Delete "${title}"? ${count} service${count > 1 ? 's' : ''} will be uncategorized.`
@@ -146,10 +149,10 @@ const CategoriesManager = ({
 		if (!window.confirm(msg)) return;
 		setSaving(true);
 		try {
-			const res = await fetch(`${API_URL}/categories/${id}`, { method: 'DELETE' });
+			const res = await fetch(`${API_URL}/categories/${slug}`, { method: 'DELETE' });
 			if (!res.ok) throw new Error(`${res.status}`);
-			setCategories((prev) => prev.filter((c) => c.id !== id));
-			if (selectedId === id) setSelectedId(categories.find((c) => c.id !== id)?.id ?? null);
+			setCategories((prev) => prev.filter((c) => c.slug !== slug));
+			if (selectedSlug === slug) setSelectedSlug(categories.find((c) => c.slug !== slug)?.slug ?? null);
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : 'Failed to delete');
 		} finally {
@@ -176,7 +179,7 @@ const CategoriesManager = ({
 				</div>
 
 				{addingNew && (
-					<div className="px-3 py-2.5 border-b border-border bg-muted/30">
+					<div className="px-3 py-2.5 border-b border-border bg-muted/30 space-y-2">
 						<input
 							type="text"
 							placeholder="Category name..."
@@ -189,19 +192,30 @@ const CategoriesManager = ({
 							autoFocus
 							className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent/50"
 						/>
+						<input
+							type="text"
+							placeholder="slug (auto from title)"
+							value={newSlug}
+							onChange={(e) => setNewSlug(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter') handleCreate();
+								if (e.key === 'Escape') setAddingNew(false);
+							}}
+							className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-muted-fg focus:outline-none focus:ring-1 focus:ring-accent/50"
+						/>
 					</div>
 				)}
 
 				<div className="max-h-[calc(100vh-220px)] overflow-y-auto">
 					{categories.map((cat) => {
-						const count = servicesByCategory.get(cat.id)?.length ?? 0;
-						const active = selectedId === cat.id;
+						const count = servicesByCategory.get(cat.slug)?.length ?? 0;
+						const active = selectedSlug === cat.slug;
 
 						return (
 							<button
-								key={cat.id}
+								key={cat.slug}
 								type="button"
-								onClick={() => setSelectedId(cat.id)}
+								onClick={() => setSelectedSlug(cat.slug)}
 								className={`w-full text-left flex items-center gap-2 px-4 py-3 border-b border-border transition-colors cursor-pointer ${
 									active ? 'bg-accent/5 border-l-[3px] border-l-accent' : 'hover:bg-muted/50'
 								}`}
@@ -221,9 +235,9 @@ const CategoriesManager = ({
 					{uncategorized.length > 0 && (
 						<button
 							type="button"
-							onClick={() => setSelectedId('__uncategorized')}
+							onClick={() => setSelectedSlug('__uncategorized')}
 							className={`w-full text-left flex items-center gap-2 px-4 py-3 transition-colors cursor-pointer ${
-								selectedId === '__uncategorized' ? 'bg-accent/5 border-l-[3px] border-l-accent' : 'hover:bg-muted/50'
+								selectedSlug === '__uncategorized' ? 'bg-accent/5 border-l-[3px] border-l-accent' : 'hover:bg-muted/50'
 							}`}
 						>
 							<div className="flex-1 min-w-0">
@@ -239,17 +253,17 @@ const CategoriesManager = ({
 
 			{/* Right panel */}
 			<div className="flex-1 min-w-0 rounded-2xl bg-surface border border-border overflow-hidden">
-				{selectedCat || selectedId === '__uncategorized' ? (
+				{selectedCat || selectedSlug === '__uncategorized' ? (
 					<>
 						<div className="px-6 py-4 border-b border-border flex items-center justify-between">
-							{editingId === selectedId && selectedCat ? (
+							{editingSlug === selectedSlug && selectedCat ? (
 								<div className="flex items-center gap-3 flex-1">
 									<input
 										type="text"
 										value={editTitle}
 										onChange={(e) => setEditTitle(e.target.value)}
 										onKeyDown={(e) => {
-											if (e.key === 'Enter') handleRename(selectedCat.id);
+											if (e.key === 'Enter') handleRename(selectedCat.slug);
 											if (e.key === 'Escape') setEditingId(null);
 										}}
 										autoFocus
@@ -257,7 +271,7 @@ const CategoriesManager = ({
 									/>
 									<button
 										type="button"
-										onClick={() => handleRename(selectedCat.id)}
+										onClick={() => handleRename(selectedCat.slug)}
 										disabled={saving}
 										className="text-xs text-accent font-medium cursor-pointer"
 									>
@@ -265,7 +279,7 @@ const CategoriesManager = ({
 									</button>
 									<button
 										type="button"
-										onClick={() => setEditingId(null)}
+										onClick={() => setEditingSlug(null)}
 										className="text-xs text-muted-fg cursor-pointer"
 									>
 										Cancel
@@ -275,7 +289,7 @@ const CategoriesManager = ({
 								<>
 									<div>
 										<h3 className="text-base font-bold text-foreground">
-											{selectedId === '__uncategorized' ? 'Uncategorized' : selectedCat?.title}
+											{selectedSlug === '__uncategorized' ? 'Uncategorized' : selectedCat?.title}
 										</h3>
 										<p className="text-[11px] text-muted-fg">
 											{selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''}
@@ -284,10 +298,10 @@ const CategoriesManager = ({
 									{selectedCat && (
 										<ActionMenu
 											onRename={() => {
-												setEditingId(selectedCat.id);
+												setEditingSlug(selectedCat.slug);
 												setEditTitle(selectedCat.title);
 											}}
-											onDelete={() => handleDelete(selectedCat.id, selectedCat.title)}
+											onDelete={() => handleDelete(selectedCat.slug, selectedCat.title)}
 										/>
 									)}
 								</>

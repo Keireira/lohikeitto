@@ -10,7 +10,7 @@ use crate::app::AppState;
 use crate::dto::health::HealthResponse;
 use crate::dto::internal::ErrorResponse;
 use crate::dto::search::SearchResult;
-use crate::dto::service::{CategoryRef, ServiceResponse};
+use crate::dto::service::ServiceResponse;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -35,7 +35,6 @@ use crate::dto::service::{CategoryRef, ServiceResponse};
         ErrorResponse,
         SearchResult,
         ServiceResponse,
-        CategoryRef,
     ))
 )]
 struct ApiDoc;

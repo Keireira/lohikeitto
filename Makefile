@@ -75,6 +75,15 @@ check: ## Run all checks (lint + cargo check + clippy)
 migrate: ## Run SQLx database migrations
 	cargo sqlx migrate run
 
+restore: ## Restore latest dump from ./dumps (skips if DB already has data)
+	@./scripts/restore-latest-dump.sh
+
+restore-force: ## Restore latest dump, replacing existing data
+	@./scripts/restore-latest-dump.sh --force
+
+backup: ## Download database backups from remote
+	@./scripts/download-backups.sh
+
 # ─── Cleanup ────────────────────────────────────────
 
 clean: ## Clean all build artifacts
