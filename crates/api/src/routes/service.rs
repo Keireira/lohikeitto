@@ -91,10 +91,10 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
     path = "/service/{lookup}",
     tag = "Services",
     summary = "Get a service by ID or domain",
-    description = "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources (Brandfetch, logo.dev, App Store, Google Play) and adds the result to the approval queue. Use `?source_hint=appstore` or `?source_hint=playstore` for exact package ID lookup.",
+    description = "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources and adds the result to the approval queue. Without `source_hint`, only brandfetch + logo.dev are searched. Use `source_hint` for App Store (`appstore`), Google Play (`playstore`), or direct web scraping (`web`).",
     params(
         ("lookup" = String, Path, description = "Service UUID, domain name, or bundle ID"),
-        ("source_hint" = Option<String>, Query, description = "Hint which external source to use for lookup (e.g. `appstore`)"),
+        ("source_hint" = Option<String>, Query, description = "External source for exact lookup: `appstore`, `playstore`, or `web`"),
     ),
     responses(
         (status = 200, description = "Service found", body = ServiceResponse),

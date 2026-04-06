@@ -57,7 +57,7 @@
           "Search"
         ],
         "summary": "Search services",
-        "description": "Search for services across inhouse database and external APIs (Brandfetch, logo.dev, App Store). Results are deduplicated by domain with priority: inhouse > appstore > brandfetch > logo.dev. Inhouse (curated) services may have multiple domains; external results always have one.",
+        "description": "Search for services across inhouse database and external APIs (Brandfetch, logo.dev, App Store, Google Play). Results are deduplicated by domain with priority: inhouse > appstore > playstore > brandfetch > logo.dev. Inhouse (curated) services may have multiple domains; external results always have one.",
         "operationId": "search",
         "parameters": [
           {
@@ -72,7 +72,7 @@
           {
             "name": "sources",
             "in": "query",
-            "description": "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`. Aliases: `external` (brandfetch + logodev + appstore), `mobile` (appstore), `all` (default)",
+            "description": "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`, `playstore`. Aliases: `external` (brandfetch + logodev + appstore + playstore), `mobile` (appstore + playstore), `all` (default)",
             "required": true,
             "schema": {
               "type": "string"
@@ -123,7 +123,7 @@
           "Services"
         ],
         "summary": "Get a service by ID or domain",
-        "description": "Look up a service by UUID, domain, or bundle ID. If not found locally, searches external sources (Brandfetch, logo.dev, App Store) and adds the result to the approval queue. Use `?source_hint=appstore` for exact bundle ID lookup via iTunes.",
+        "description": "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources (Brandfetch, logo.dev, App Store, Google Play) and adds the result to the approval queue. Use `?source_hint=appstore` or `?source_hint=playstore` for exact package ID lookup.",
         "operationId": "get",
         "parameters": [
           {
@@ -248,21 +248,14 @@
               "string",
               "null"
             ],
-            "description": "Bundle ID (appstore only)"
+            "description": "Bundle ID (appstore/playstore)"
           },
           "category_slug": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Matched category slug (appstore only)"
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Service description (appstore only)"
+            "description": "Matched category slug (appstore/playstore)"
           },
           "domains": {
             "type": "array",
@@ -286,23 +279,9 @@
             "description": "Service name",
             "example": "AdGuard"
           },
-          "seller_domain": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Seller website domain extracted from sellerUrl (appstore only)"
-          },
-          "seller_name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Seller / developer name (appstore only)"
-          },
           "source": {
             "type": "string",
-            "description": "Result source: `inhouse`, `brandfetch`, `logo.dev`, or `appstore`",
+            "description": "Result source: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, or `playstore`",
             "example": "inhouse"
           },
           "tags": {
@@ -313,7 +292,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Genre-derived tags (appstore only)"
+            "description": "Genre-derived tags (appstore/playstore)"
           }
         },
         "example": {
@@ -360,12 +339,6 @@
             ]
           },
           "colors": {},
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "domains": {
             "type": "array",
             "items": {

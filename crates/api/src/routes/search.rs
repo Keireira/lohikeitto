@@ -14,10 +14,10 @@ use crate::services::search as search_service;
     path = "/search",
     tag = "Search",
     summary = "Search services",
-    description = "Search for services across inhouse database and external APIs (Brandfetch, logo.dev, App Store, Google Play). Results are deduplicated by domain with priority: inhouse > appstore > playstore > brandfetch > logo.dev. Inhouse (curated) services may have multiple domains; external results always have one.",
+    description = "Search for services across inhouse database and external sources (Brandfetch, logo.dev, App Store, Google Play, Web). Results are deduplicated by domain (www. stripped) with priority: inhouse > appstore > playstore > web > brandfetch > logo.dev.",
     params(
         ("q" = String, Query, description = "Search string (required, non-empty)"),
-        ("sources" = String, Query, description = "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`, `playstore`. Aliases: `external` (brandfetch + logodev + appstore + playstore), `mobile` (appstore + playstore), `all` (default)"),
+        ("sources" = String, Query, description = "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`, `playstore`, `web`. Aliases: `external` (all external), `mobile` (appstore + playstore), `all` (default)"),
     ),
     responses(
         (status = 200, description = "Search results", body = [SearchResult],
