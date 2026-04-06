@@ -21,6 +21,9 @@ pub async fn search(
     config: &Config,
     q: &str,
     sources: &SearchSources,
+    app_store_country: &str,
+    playstore_country: &str,
+    language: &str,
 ) -> Vec<SearchResult> {
     let inhouse_fut = async {
         if sources.has(Source::Inhouse) {
@@ -48,7 +51,7 @@ pub async fn search(
 
     let as_fut = async {
         if sources.has(Source::AppStore) {
-            search_appstore(http, q).await
+            search_appstore(http, q, app_store_country).await
         } else {
             vec![]
         }
@@ -56,7 +59,8 @@ pub async fn search(
 
     let ps_fut = async {
         if sources.has(Source::PlayStore) {
-            search_playstore(http, q).await
+            let ps_lang = if language.is_empty() { "en" } else { language };
+            search_playstore(http, q, playstore_country, ps_lang).await
         } else {
             vec![]
         }
@@ -241,8 +245,12 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
         .collect()
 }
 
-async fn search_appstore(http: &Client, q: &str) -> Vec<SearchResult> {
-    let mut url = url::Url::parse("https://itunes.apple.com/search").unwrap();
+async fn search_appstore(http: &Client, q: &str, country: &str) -> Vec<SearchResult> {
+    let base = format!(
+        "https://itunes.apple.com/{}/search",
+        country.to_lowercase()
+    );
+    let mut url = url::Url::parse(&base).unwrap();
     url.query_pairs_mut()
         .append_pair("term", q)
         .append_pair("entity", "software")
@@ -271,8 +279,12 @@ async fn search_appstore(http: &Client, q: &str) -> Vec<SearchResult> {
 }
 
 /// Exact lookup by bundle ID via iTunes Lookup API.
-async fn lookup_appstore(http: &Client, bundle_id: &str) -> Option<SearchResult> {
-    let mut url = url::Url::parse("https://itunes.apple.com/lookup").unwrap();
+async fn lookup_appstore(http: &Client, bundle_id: &str, country: &str) -> Option<SearchResult> {
+    let base = format!(
+        "https://itunes.apple.com/{}/lookup",
+        country.to_lowercase()
+    );
+    let mut url = url::Url::parse(&base).unwrap();
     url.query_pairs_mut().append_pair("bundleId", bundle_id);
 
     let resp: ITunesSearchResponse = match http.get(url.as_str()).send().await {
@@ -318,15 +330,27 @@ fn itunes_app_to_result(app: appstore::ITunesApp) -> SearchResult {
     }
 }
 
-async fn search_playstore(http: &Client, q: &str) -> Vec<SearchResult> {
+async fn search_playstore(
+    http: &Client,
+    q: &str,
+    country: &str,
+    language: &str,
+) -> Vec<SearchResult> {
     let url = format!(
-        "https://play.google.com/store/search?q={}&c=apps&hl=en",
-        url::form_urlencoded::byte_serialize(q.as_bytes()).collect::<String>()
+        "https://play.google.com/store/search?q={}&c=apps&hl={}&gl={}",
+        url::form_urlencoded::byte_serialize(q.as_bytes()).collect::<String>(),
+        language,
+        country,
     );
 
+    let accept_lang = if language == "en" {
+        "en".to_string()
+    } else {
+        format!("{language},en;q=0.5")
+    };
     let html = match http
         .get(&url)
-        .header("Accept-Language", "en-US,en;q=0.9")
+        .header("Accept-Language", &accept_lang)
         .send()
         .await
     {
@@ -348,15 +372,25 @@ async fn search_playstore(http: &Client, q: &str) -> Vec<SearchResult> {
 }
 
 /// Exact lookup by package name via Google Play details page.
-async fn lookup_playstore(http: &Client, package_name: &str) -> Option<SearchResult> {
+async fn lookup_playstore(
+    http: &Client,
+    package_name: &str,
+    country: &str,
+    language: &str,
+) -> Option<SearchResult> {
     let url = format!(
-        "https://play.google.com/store/apps/details?id={}&hl=en",
-        package_name
+        "https://play.google.com/store/apps/details?id={}&hl={}&gl={}",
+        package_name, language, country,
     );
 
+    let accept_lang = if language == "en" {
+        "en".to_string()
+    } else {
+        format!("{language},en;q=0.5")
+    };
     let html = match http
         .get(&url)
-        .header("Accept-Language", "en-US,en;q=0.9")
+        .header("Accept-Language", &accept_lang)
         .send()
         .await
     {
@@ -449,10 +483,15 @@ pub async fn lookup_external(
     config: &Config,
     domain: &str,
     source_hint: Option<&str>,
+    country: &str,
+    language: &str,
 ) -> Option<SearchResult> {
     match source_hint {
-        Some("appstore") => return lookup_appstore(http, domain).await,
-        Some("playstore") => return lookup_playstore(http, domain).await,
+        Some("appstore") => return lookup_appstore(http, domain, country).await,
+        Some("playstore") => {
+            let ps_lang = if language.is_empty() { "en" } else { language };
+            return lookup_playstore(http, domain, country, ps_lang).await;
+        }
         Some("web") => return lookup_web(http, domain).await,
         _ => {}
     }
