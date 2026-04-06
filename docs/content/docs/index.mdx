@@ -43,6 +43,24 @@ If `spotify.com` appears in all four — only the inhouse version is kept. App S
 
 Inhouse (curated) services may have multiple domains — all of them are searchable and each one blocks external duplicates. External results always have a single domain and are **never merged** with each other to prevent search poisoning.
 
+When 3+ sources return data, each external source is capped at **5 results** to avoid flooding. Inhouse results are not capped.
+
+### App Store metadata
+
+App Store results carry extra metadata from the iTunes API: `description`, `bundle_id`, `seller_name`, `seller_domain` (extracted from `sellerUrl`), `category_slug` (Apple genres mapped to local categories), and `tags`. These fields are `null` for other sources.
+
+### Service lookup
+
+`GET /service/{lookup}` resolves a service by UUID, slug, domain, or bundle ID. If not found locally, it searches external sources and stashes the result in the **limbus** (approval queue).
+
+For App Store apps, use `?source_hint=appstore` to trigger an exact lookup via the iTunes Lookup API (`bundleId` match) instead of fuzzy search:
+
+```
+/service/org.getpure.pure-iphone?source_hint=appstore
+```
+
+Without the hint, the lookup falls back to fuzzy search across all external sources.
+
 ### Frontend strategy
 
 The client fires two sequential requests to keep the UI responsive:

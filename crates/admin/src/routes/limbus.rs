@@ -15,6 +15,10 @@ pub struct LimbusItem {
     pub domain: String,
     pub logo_url: Option<String>,
     pub source: String,
+    pub description: Option<String>,
+    pub bundle_id: Option<String>,
+    pub category_slug: Option<String>,
+    pub tags: Vec<String>,
     pub created_at: String,
 }
 
@@ -25,13 +29,17 @@ struct LimbusWithDate {
     domain: String,
     logo_url: Option<String>,
     source: String,
+    description: Option<String>,
+    bundle_id: Option<String>,
+    category_slug: Option<String>,
+    tags: Vec<String>,
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// List all limbus entries.
 pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<LimbusItem>>, AdminError> {
     let rows = sqlx::query_as::<sqlx::Postgres, LimbusWithDate>(
-        "SELECT id, name, domain, logo_url, source, created_at FROM limbus ORDER BY created_at DESC",
+        "SELECT id, name, domain, logo_url, source, description, bundle_id, category_slug, tags, created_at FROM limbus ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await?;
@@ -44,6 +52,10 @@ pub async fn list(State(state): State<AdminState>) -> Result<Json<Vec<LimbusItem
             domain: r.domain,
             logo_url: r.logo_url,
             source: r.source,
+            description: r.description,
+            bundle_id: r.bundle_id,
+            category_slug: r.category_slug,
+            tags: r.tags,
             created_at: r.created_at.to_rfc3339(),
         })
         .collect();
@@ -68,7 +80,7 @@ pub async fn create(
         r#"
         INSERT INTO limbus (name, domain, logo_url, source)
         VALUES ($1, $2, $3, $4)
-        RETURNING id, name, domain, logo_url, source, created_at
+        RETURNING id, name, domain, logo_url, source, description, bundle_id, category_slug, tags, created_at
         "#,
     )
     .bind(&req.name)
@@ -84,6 +96,10 @@ pub async fn create(
         domain: row.domain,
         logo_url: row.logo_url,
         source: row.source,
+        description: row.description,
+        bundle_id: row.bundle_id,
+        category_slug: row.category_slug,
+        tags: row.tags,
         created_at: row.created_at.to_rfc3339(),
     }))
 }
@@ -115,23 +131,30 @@ pub async fn approve(
     Json(req): Json<ApproveRequest>,
 ) -> Result<Json<serde_json::Value>, AdminError> {
     let limbus = sqlx::query_as::<sqlx::Postgres, LimbusWithDate>(
-        "SELECT id, name, domain, logo_url, source, created_at FROM limbus WHERE id = $1",
+        "SELECT id, name, domain, logo_url, source, description, bundle_id, category_slug, tags, created_at FROM limbus WHERE id = $1",
     )
     .bind(id)
     .fetch_one(&state.db)
     .await?;
 
+    // Use request overrides, fall back to limbus metadata from appstore
+    let category = req.category_slug.or(limbus.category_slug);
+    let tags = if limbus.tags.is_empty() { vec![] } else { limbus.tags };
+
     // Insert into services
     sqlx::query(
         r#"
-        INSERT INTO services (name, slug, domains, verified, category_slug, colors)
-        VALUES ($1, $2, $3, true, $4, $5)
+        INSERT INTO services (name, slug, bundle_id, description, domains, tags, verified, category_slug, colors)
+        VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8)
         "#,
     )
     .bind(&limbus.name)
     .bind(&req.slug)
+    .bind(&limbus.bundle_id)
+    .bind(&limbus.description)
     .bind(std::slice::from_ref(&limbus.domain))
-    .bind(&req.category_slug)
+    .bind(&tags)
+    .bind(&category)
     .bind(&req.colors)
     .execute(&state.db)
     .await?;

@@ -38,6 +38,10 @@ type LimbusT = {
 	domain: string;
 	logo_url: string | null;
 	source: string;
+	description: string | null;
+	bundle_id: string | null;
+	category_slug: string | null;
+	tags: string[];
 	created_at: string;
 };
 

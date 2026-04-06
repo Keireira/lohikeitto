@@ -101,4 +101,28 @@ pub struct SearchResult {
     /// Result source: `inhouse`, `brandfetch`, `logo.dev`, or `appstore`
     #[schema(example = "inhouse")]
     pub source: String,
+    /// Service description (appstore only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
+    pub description: Option<String>,
+    /// Bundle ID (appstore only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
+    pub bundle_id: Option<String>,
+    /// Seller / developer name (appstore only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
+    pub seller_name: Option<String>,
+    /// Seller website domain extracted from sellerUrl (appstore only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
+    pub seller_domain: Option<String>,
+    /// Matched category slug (appstore only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
+    pub category_slug: Option<String>,
+    /// Genre-derived tags (appstore only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable)]
+    pub tags: Option<Vec<String>>,
 }

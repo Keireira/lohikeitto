@@ -123,14 +123,23 @@
           "Services"
         ],
         "summary": "Get a service by ID or domain",
-        "description": "Look up a service by UUID or domain name. If not found locally, searches external sources (Brandfetch, logo.dev, App Store) and adds the result to the approval queue.",
+        "description": "Look up a service by UUID, domain, or bundle ID. If not found locally, searches external sources (Brandfetch, logo.dev, App Store) and adds the result to the approval queue. Use `?source_hint=appstore` for exact bundle ID lookup via iTunes.",
         "operationId": "get",
         "parameters": [
           {
             "name": "lookup",
             "in": "path",
-            "description": "Service UUID or domain name",
+            "description": "Service UUID, domain name, or bundle ID",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_hint",
+            "in": "query",
+            "description": "Hint which external source to use for lookup (e.g. `appstore`)",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -234,6 +243,27 @@
           "source"
         ],
         "properties": {
+          "bundle_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Bundle ID (appstore only)"
+          },
+          "category_slug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Matched category slug (appstore only)"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Service description (appstore only)"
+          },
           "domains": {
             "type": "array",
             "items": {
@@ -256,10 +286,34 @@
             "description": "Service name",
             "example": "AdGuard"
           },
+          "seller_domain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Seller website domain extracted from sellerUrl (appstore only)"
+          },
+          "seller_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Seller / developer name (appstore only)"
+          },
           "source": {
             "type": "string",
             "description": "Result source: `inhouse`, `brandfetch`, `logo.dev`, or `appstore`",
             "example": "inhouse"
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Genre-derived tags (appstore only)"
           }
         },
         "example": {

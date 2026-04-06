@@ -1,14 +1,21 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use uuid::Uuid;
+
+use serde::Deserialize;
 
 use crate::app::AppState;
 use crate::dto::internal::ErrorResponse;
 use crate::dto::service::ServiceResponse;
 use crate::error::ApiError;
 use crate::services::search as search_service;
+
+#[derive(Debug, Deserialize)]
+pub struct ServiceQuery {
+    pub source_hint: Option<String>,
+}
 
 #[derive(Debug, sqlx::FromRow)]
 struct ServiceRow {
@@ -33,6 +40,10 @@ struct LimbusRow {
     name: String,
     domain: String,
     logo_url: Option<String>,
+    description: Option<String>,
+    bundle_id: Option<String>,
+    category_slug: Option<String>,
+    tags: Vec<String>,
 }
 
 fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
@@ -61,17 +72,17 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
         id: row.id,
         name: row.name,
         slug: String::new(),
-        bundle_id: None,
-        description: None,
+        bundle_id: row.bundle_id,
+        description: row.description,
         domains: vec![row.domain],
         alternative_names: vec![],
-        tags: vec![],
+        tags: row.tags,
         verified: false,
         colors: serde_json::json!({}),
         social_links: serde_json::json!({}),
         logo_url: row.logo_url.unwrap_or_default(),
         ref_link: None,
-        category: None,
+        category: row.category_slug,
     }
 }
 
@@ -80,9 +91,10 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
     path = "/service/{lookup}",
     tag = "Services",
     summary = "Get a service by ID or domain",
-    description = "Look up a service by UUID or domain name. If not found locally, searches external sources (Brandfetch, logo.dev, App Store) and adds the result to the approval queue.",
+    description = "Look up a service by UUID, domain, or bundle ID. If not found locally, searches external sources (Brandfetch, logo.dev, App Store) and adds the result to the approval queue. Use `?source_hint=appstore` for exact bundle ID lookup via iTunes.",
     params(
-        ("lookup" = String, Path, description = "Service UUID or domain name"),
+        ("lookup" = String, Path, description = "Service UUID, domain name, or bundle ID"),
+        ("source_hint" = Option<String>, Query, description = "Hint which external source to use for lookup (e.g. `appstore`)"),
     ),
     responses(
         (status = 200, description = "Service found", body = ServiceResponse),
@@ -92,6 +104,7 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
 pub async fn get(
     State(state): State<AppState>,
     Path(lookup): Path<String>,
+    Query(query): Query<ServiceQuery>,
 ) -> Result<Json<ServiceResponse>, ApiError> {
     let s3_base = &state.config.s3_base_url;
 
@@ -113,7 +126,7 @@ pub async fn get(
         }
 
         if let Some(row) = sqlx::query_as::<_, LimbusRow>(
-            "SELECT id, name, domain, logo_url FROM limbus WHERE id = $1",
+            "SELECT id, name, domain, logo_url, description, bundle_id, category_slug, tags FROM limbus WHERE id = $1",
         )
         .bind(id)
         .fetch_optional(&state.db)
@@ -145,7 +158,7 @@ pub async fn get(
     let domain = &lookup;
 
     if let Some(row) = sqlx::query_as::<_, LimbusRow>(
-        "SELECT id, name, domain, logo_url FROM limbus WHERE domain = $1",
+        "SELECT id, name, domain, logo_url, description, bundle_id, category_slug, tags FROM limbus WHERE domain = $1",
     )
     .bind(domain)
     .fetch_optional(&state.db)
@@ -155,14 +168,19 @@ pub async fn get(
     }
 
     // Search external sources
-    let result = search_service::lookup_external(&state.http, &state.config, domain)
-        .await
-        .ok_or(ApiError::NotFound)?;
+    let result = search_service::lookup_external(
+        &state.http,
+        &state.config,
+        domain,
+        query.source_hint.as_deref(),
+    )
+    .await
+    .ok_or(ApiError::NotFound)?;
 
     // Stash in limbus for admin approval
     let limbus_id: Uuid = sqlx::query_scalar(
-        r#"INSERT INTO limbus (id, name, domain, logo_url, source)
-           VALUES ($1, $2, $3, $4, $5)
+        r#"INSERT INTO limbus (id, name, domain, logo_url, source, description, bundle_id, category_slug, tags)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            ON CONFLICT (domain) DO NOTHING
            RETURNING id"#,
     )
@@ -171,24 +189,34 @@ pub async fn get(
     .bind(domain)
     .bind(&result.logo_url)
     .bind(&result.source)
+    .bind(&result.description)
+    .bind(&result.bundle_id)
+    .bind(&result.category_slug)
+    .bind(&result.tags.as_deref().unwrap_or_default())
     .fetch_optional(&state.db)
     .await?
     .unwrap_or(result.id);
+
+    // Use seller_domain as service domain if available, otherwise use lookup key
+    let response_domains = result
+        .seller_domain
+        .map(|d| vec![d])
+        .unwrap_or_else(|| vec![domain.clone()]);
 
     Ok(Json(ServiceResponse {
         id: limbus_id,
         name: result.name,
         slug: String::new(),
-        bundle_id: None,
-        description: None,
-        domains: vec![domain.clone()],
+        bundle_id: result.bundle_id,
+        description: result.description,
+        domains: response_domains,
         alternative_names: vec![],
-        tags: vec![],
+        tags: result.tags.unwrap_or_default(),
         verified: false,
         colors: serde_json::json!({}),
         social_links: serde_json::json!({}),
         logo_url: result.logo_url,
         ref_link: None,
-        category: None,
+        category: result.category_slug,
     }))
 }

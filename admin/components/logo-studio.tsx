@@ -232,7 +232,7 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 									const src = active === 'current' || active === 'inhouse' ? undefined : active;
 									setLogos((p) => {
 										const next: Partial<Record<Source, LogoEntry>> = { current: p.current };
-										if (p.local) next.local = p.local;
+										if (p.inhouse) next.inhouse = p.inhouse;
 										return next;
 									});
 									if (src) setTimeout(() => fetchRemote(src), 0);

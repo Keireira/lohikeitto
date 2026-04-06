@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::config::Config;
 
 use crate::dto::search::{SearchResult, SearchSources, Source};
-use crate::models::appstore::ITunesSearchResponse;
+use crate::models::appstore::{self, ITunesSearchResponse};
 use crate::models::brandfetch::BFSearchItem;
 use crate::models::logodev::LDSearchItem;
 use shared::models::service::ServiceRow;
@@ -52,7 +52,20 @@ pub async fn search(
         }
     };
 
-    let (inhouse, brandfetch, logodev, appstore) = tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut);
+    let (inhouse, mut brandfetch, mut logodev, mut appstore) =
+        tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut);
+
+    // When 3+ providers returned data, cap external sources to avoid flooding
+    let active = [&inhouse, &brandfetch, &logodev, &appstore]
+        .iter()
+        .filter(|g| !g.is_empty())
+        .count();
+    if active >= 3 {
+        const CAP: usize = 5;
+        brandfetch.truncate(CAP);
+        logodev.truncate(CAP);
+        appstore.truncate(CAP);
+    }
 
     deduplicate(inhouse, brandfetch, logodev, appstore)
 }
@@ -87,6 +100,12 @@ async fn search_inhouse(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<Search
             name: r.name,
             domains: r.domains,
             source: "inhouse".into(),
+            description: None,
+            bundle_id: None,
+            seller_name: None,
+            seller_domain: None,
+            category_slug: None,
+            tags: None,
         })
         .collect()
 }
@@ -134,6 +153,12 @@ async fn search_brandfetch(http: &Client, client_id: &str, q: &str) -> Vec<Searc
                 name,
                 domains: vec![item.domain],
                 source: "brandfetch".into(),
+                description: None,
+                bundle_id: None,
+                seller_name: None,
+                seller_domain: None,
+                category_slug: None,
+                tags: None,
             }
         })
         .collect()
@@ -172,6 +197,12 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
             name: item.name,
             domains: vec![item.domain],
             source: "logo.dev".into(),
+            description: None,
+            bundle_id: None,
+            seller_name: None,
+            seller_domain: None,
+            category_slug: None,
+            tags: None,
         })
         .collect()
 }
@@ -201,29 +232,71 @@ async fn search_appstore(http: &Client, q: &str) -> Vec<SearchResult> {
     resp.results
         .into_iter()
         .filter(|app| !app.bundle_id.is_empty())
-        .map(|app| {
-            let logo_url = app
-                .artwork_url_512
-                .or(app.artwork_url_100)
-                .unwrap_or_default();
-
-            SearchResult {
-                id: Uuid::new_v5(&Uuid::NAMESPACE_URL, app.bundle_id.as_bytes()),
-                logo_url,
-                name: app.track_name,
-                domains: vec![app.bundle_id],
-                source: "appstore".into(),
-            }
-        })
+        .map(itunes_app_to_result)
         .collect()
 }
 
+/// Exact lookup by bundle ID via iTunes Lookup API.
+async fn lookup_appstore(http: &Client, bundle_id: &str) -> Option<SearchResult> {
+    let mut url = url::Url::parse("https://itunes.apple.com/lookup").unwrap();
+    url.query_pairs_mut().append_pair("bundleId", bundle_id);
+
+    let resp: ITunesSearchResponse = match http.get(url.as_str()).send().await {
+        Ok(resp) if resp.status().is_success() => resp.json().await.ok()?,
+        _ => return None,
+    };
+
+    resp.results
+        .into_iter()
+        .next()
+        .map(itunes_app_to_result)
+}
+
+fn itunes_app_to_result(app: appstore::ITunesApp) -> SearchResult {
+    let logo_url = app
+        .artwork_url_512
+        .or(app.artwork_url_100)
+        .unwrap_or_default();
+
+    let (category_slug, tags) = app
+        .genres
+        .as_deref()
+        .map(appstore::map_genres)
+        .unwrap_or((None, vec![]));
+
+    let seller_domain = app.seller_url.as_deref().and_then(|u| {
+        url::Url::parse(u)
+            .ok()
+            .and_then(|parsed| parsed.host_str().map(|h| h.to_string()))
+    });
+
+    SearchResult {
+        id: Uuid::new_v5(&Uuid::NAMESPACE_URL, app.bundle_id.as_bytes()),
+        logo_url,
+        name: app.track_name,
+        domains: vec![app.bundle_id.clone()],
+        source: "appstore".into(),
+        description: app.description,
+        bundle_id: Some(app.bundle_id),
+        seller_name: app.seller_name,
+        seller_domain,
+        category_slug: category_slug.map(Into::into),
+        tags: if tags.is_empty() { None } else { Some(tags) },
+    }
+}
+
 /// Search external sources by domain, return first match.
+/// When `source_hint` is provided (e.g. "appstore"), uses exact lookup for that source.
 pub async fn lookup_external(
     http: &Client,
     config: &Config,
     domain: &str,
+    source_hint: Option<&str>,
 ) -> Option<SearchResult> {
+    if source_hint == Some("appstore") {
+        return lookup_appstore(http, domain).await;
+    }
+
     let (bf, ld, appstore) = tokio::join!(
         search_brandfetch(http, &config.brandfetch_client_id, domain),
         search_logodev(http, &config.logodev_pk, &config.logodev_sk, domain),
