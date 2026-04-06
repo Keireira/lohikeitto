@@ -90,6 +90,12 @@ pub struct SearchQuery {
     pub q: String,
     #[serde(default, deserialize_with = "deserialize_sources")]
     pub sources: SearchSources,
+    /// App Store country code (default: US)
+    pub app_store_country: Option<String>,
+    /// Play Store country code (default: US)
+    pub playstore_country: Option<String>,
+    /// Language code (default: en)
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

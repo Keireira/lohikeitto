@@ -37,6 +37,26 @@ The `sources` parameter controls which sources are queried — as a comma-separa
 
 Aliases: `external` (brandfetch + logodev + appstore + playstore + web), `mobile` (appstore + playstore), `all` (default — all six).
 
+### Regional & language parameters
+
+By default, App Store and Google Play return results for the **US** store in **English**. You can override this per-store:
+
+| Parameter | Applies to | Default | Example |
+|-----------|-----------|---------|---------|
+| `app_store_country` | App Store | `US` | `RU`, `JP`, `GB` |
+| `playstore_country` | Google Play | `US` | `RU`, `JP`, `DE` |
+| `language` | Google Play only | `en` | `ru`, `ja`, `de` |
+
+All parameters are optional. Country codes are [ISO 3166-1 alpha-2](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2).
+
+```
+/search?q=сбербанк&sources=mobile&app_store_country=RU&playstore_country=RU&language=ru
+```
+
+Under the hood:
+- **App Store** — country code in URL path (`https://itunes.apple.com/{country}/search`). The `language` parameter is ignored — iTunes localizes results based on the storefront region only.
+- **Google Play** — `gl` (country) and `hl` (language) query params + `Accept-Language` header
+
 Results are **deduplicated by domain** with priority:
 
 ```
@@ -79,6 +99,18 @@ For mobile apps or web domains, use `?source_hint=` to trigger an exact lookup:
 ```
 
 Without a hint, the lookup only searches **brandfetch + logo.dev** (fast, domain-based sources). Mobile stores and web parsing require an explicit hint.
+
+When using `source_hint=appstore` or `source_hint=playstore`, you can specify the store region and language:
+
+| Parameter | Applies to | Default | Example |
+|-----------|-----------|---------|---------|
+| `country` | appstore, playstore (requires `source_hint`) | `US` | `RU`, `JP` |
+| `language` | playstore only (requires `source_hint=playstore`) | `en` | `ru`, `ja` |
+
+```
+/service/ru.sberbank.sberbankir?source_hint=appstore&country=RU
+/service/com.whatsapp?source_hint=playstore&country=RU&language=ru
+```
 
 ### Frontend strategy
 

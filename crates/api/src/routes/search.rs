@@ -18,6 +18,9 @@ use crate::services::search as search_service;
     params(
         ("q" = String, Query, description = "Search string (required, non-empty)"),
         ("sources" = String, Query, description = "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`, `playstore`, `web`. Aliases: `external` (all external), `mobile` (appstore + playstore), `all` (default)"),
+        ("app_store_country" = Option<String>, Query, description = "App Store country code (default: US)"),
+        ("playstore_country" = Option<String>, Query, description = "Play Store country code (default: US)"),
+        ("language" = Option<String>, Query, description = "Language code for store results (default: en)"),
     ),
     responses(
         (status = 200, description = "Search results", body = [SearchResult],
@@ -43,8 +46,21 @@ pub async fn search(
         return Err(ApiError::InvalidInput("q is required".into()));
     }
 
-    let results =
-        search_service::search(&state.db, &state.http, &state.config, q, &params.sources).await;
+    let app_store_country = params.app_store_country.unwrap_or_else(|| "US".into());
+    let playstore_country = params.playstore_country.unwrap_or_else(|| "US".into());
+    let language = params.language.unwrap_or_default();
+
+    let results = search_service::search(
+        &state.db,
+        &state.http,
+        &state.config,
+        q,
+        &params.sources,
+        &app_store_country,
+        &playstore_country,
+        &language,
+    )
+    .await;
 
     Ok(Json(results))
 }

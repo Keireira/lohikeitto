@@ -15,6 +15,10 @@ use crate::services::search as search_service;
 #[derive(Debug, Deserialize)]
 pub struct ServiceQuery {
     pub source_hint: Option<String>,
+    /// Country code, works with source_hint=appstore|playstore (default: US)
+    pub country: Option<String>,
+    /// Language code (default: en)
+    pub language: Option<String>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -32,18 +36,6 @@ struct ServiceRow {
     social_links: serde_json::Value,
     ref_link: Option<String>,
     category_slug: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct LimbusRow {
-    id: Uuid,
-    name: String,
-    domain: String,
-    logo_url: Option<String>,
-    description: Option<String>,
-    bundle_id: Option<String>,
-    category_slug: Option<String>,
-    tags: Vec<String>,
 }
 
 fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
@@ -67,25 +59,6 @@ fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
     }
 }
 
-fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
-    ServiceResponse {
-        id: row.id,
-        name: row.name,
-        slug: String::new(),
-        bundle_id: row.bundle_id,
-        description: row.description,
-        domains: vec![row.domain],
-        alternative_names: vec![],
-        tags: row.tags,
-        verified: false,
-        colors: serde_json::json!({}),
-        social_links: serde_json::json!({}),
-        logo_url: row.logo_url.unwrap_or_default(),
-        ref_link: None,
-        category_slug: row.category_slug,
-    }
-}
-
 #[utoipa::path(
     get,
     path = "/service/{lookup}",
@@ -95,6 +68,8 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
     params(
         ("lookup" = String, Path, description = "Service UUID, domain name, or bundle ID"),
         ("source_hint" = Option<String>, Query, description = "External source for exact lookup: `appstore`, `playstore`, or `web`"),
+        ("country" = Option<String>, Query, description = "Country code, works with source_hint=appstore|playstore (default: US)"),
+        ("language" = Option<String>, Query, description = "Language code for store results (default: en)"),
     ),
     responses(
         (status = 200, description = "Service found", body = ServiceResponse),
@@ -125,16 +100,6 @@ pub async fn get(
             return Ok(Json(service_to_response(row, s3_base)));
         }
 
-        if let Some(row) = sqlx::query_as::<_, LimbusRow>(
-            "SELECT id, name, domain, logo_url, description, bundle_id, category_slug, tags FROM limbus WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?
-        {
-            return Ok(Json(limbus_to_response(row)));
-        }
-
         return Err(ApiError::NotFound);
     }
 
@@ -157,22 +122,16 @@ pub async fn get(
 
     let domain = &lookup;
 
-    if let Some(row) = sqlx::query_as::<_, LimbusRow>(
-        "SELECT id, name, domain, logo_url, description, bundle_id, category_slug, tags FROM limbus WHERE domain = $1",
-    )
-    .bind(domain)
-    .fetch_optional(&state.db)
-    .await?
-    {
-        return Ok(Json(limbus_to_response(row)));
-    }
-
     // Search external sources
+    let country = query.country.unwrap_or_else(|| "US".into());
+    let language = query.language.unwrap_or_default();
     let result = search_service::lookup_external(
         &state.http,
         &state.config,
         domain,
         query.source_hint.as_deref(),
+        &country,
+        &language,
     )
     .await
     .ok_or(ApiError::NotFound)?;
