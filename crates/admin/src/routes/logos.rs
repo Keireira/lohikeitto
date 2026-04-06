@@ -8,7 +8,8 @@ use crate::error::AdminError;
 pub struct FetchLogoRequest {
     pub domain: String,
     pub slug: String,
-    pub source: String, // "brandfetch" or "logodev"
+    pub source: String, // "brandfetch", "logodev", "appstore", or "playstore"
+    pub logo_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -43,6 +44,9 @@ pub async fn fetch_logo(
                 req.domain, pk
             )
         }
+        "appstore" | "playstore" | "web" => req.logo_url.clone().ok_or_else(|| {
+            AdminError::Internal("logo_url is required for appstore/playstore source".into())
+        })?,
         _ => {
             return Err(AdminError::Internal(format!(
                 "Unknown source: {}",
@@ -86,6 +90,9 @@ pub async fn save_logo(
                 req.domain, pk
             )
         }
+        "appstore" | "playstore" | "web" => req.logo_url.clone().ok_or_else(|| {
+            AdminError::Internal("logo_url is required for appstore/playstore source".into())
+        })?,
         _ => {
             return Err(AdminError::Internal(format!(
                 "Unknown source: {}",

@@ -57,7 +57,7 @@
           "Search"
         ],
         "summary": "Search services",
-        "description": "Search for services across local database and external APIs (Brandfetch, logo.dev). Results are deduplicated by domain with priority: local > brandfetch > logo.dev. Local (curated) services may have multiple domains; external results always have one.",
+        "description": "Search for services across inhouse database and external APIs (Brandfetch, logo.dev, App Store). Results are deduplicated by domain with priority: inhouse > appstore > brandfetch > logo.dev. Inhouse (curated) services may have multiple domains; external results always have one.",
         "operationId": "search",
         "parameters": [
           {
@@ -72,7 +72,7 @@
           {
             "name": "sources",
             "in": "query",
-            "description": "Comma-separated sources: `local`, `brandfetch`, `logodev`. Aliases: `external` (brandfetch + logodev), `all` (default)",
+            "description": "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`. Aliases: `external` (brandfetch + logodev + appstore), `mobile` (appstore), `all` (default)",
             "required": true,
             "schema": {
               "type": "string"
@@ -98,7 +98,7 @@
                     "id": "550e8400-e29b-41d4-a716-446655440000",
                     "logo_url": "https://s3.uha.app/logos/adguard.webp",
                     "name": "AdGuard",
-                    "source": "local"
+                    "source": "inhouse"
                   }
                 ]
               }
@@ -123,14 +123,23 @@
           "Services"
         ],
         "summary": "Get a service by ID or domain",
-        "description": "Look up a service by UUID or domain name. If not found locally, searches external sources (Brandfetch, logo.dev) and adds the result to the approval queue.",
+        "description": "Look up a service by UUID, domain, or bundle ID. If not found locally, searches external sources (Brandfetch, logo.dev, App Store) and adds the result to the approval queue. Use `?source_hint=appstore` for exact bundle ID lookup via iTunes.",
         "operationId": "get",
         "parameters": [
           {
             "name": "lookup",
             "in": "path",
-            "description": "Service UUID or domain name",
+            "description": "Service UUID, domain name, or bundle ID",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_hint",
+            "in": "query",
+            "description": "Hint which external source to use for lookup (e.g. `appstore`)",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -234,17 +243,38 @@
           "source"
         ],
         "properties": {
+          "bundle_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Bundle ID (appstore only)"
+          },
+          "category_slug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Matched category slug (appstore only)"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Service description (appstore only)"
+          },
           "domains": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Service domains. Local (curated) results may have multiple; external results always have one."
+            "description": "Service domains. Inhouse (curated) results may have multiple; external results always have one."
           },
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "For local results — UUID v4 from DB; for external — deterministic UUID v5 from first domain"
+            "description": "For inhouse results — UUID v4 from DB; for external — deterministic UUID v5 from first domain"
           },
           "logo_url": {
             "type": "string",
@@ -256,10 +286,34 @@
             "description": "Service name",
             "example": "AdGuard"
           },
+          "seller_domain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Seller website domain extracted from sellerUrl (appstore only)"
+          },
+          "seller_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Seller / developer name (appstore only)"
+          },
           "source": {
             "type": "string",
-            "description": "Result source: `local`, `brandfetch`, or `logo.dev`",
-            "example": "local"
+            "description": "Result source: `inhouse`, `brandfetch`, `logo.dev`, or `appstore`",
+            "example": "inhouse"
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Genre-derived tags (appstore only)"
           }
         },
         "example": {
@@ -269,7 +323,7 @@
           "id": "550e8400-e29b-41d4-a716-446655440000",
           "logo_url": "https://s3.uha.app/logos/adguard.webp",
           "name": "AdGuard",
-          "source": "local"
+          "source": "inhouse"
         }
       },
       "ServiceResponse": {

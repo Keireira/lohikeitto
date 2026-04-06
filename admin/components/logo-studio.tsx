@@ -16,24 +16,28 @@ type LogoEntry = {
 	width: number;
 	height: number;
 	format: string;
+	originUrl?: string;
 };
 
 type Props = {
-	domain: string;
+	defaultQuery: string;
 	slug: string;
 	currentLogoUrl: string;
-	onSave: (source: string, slug: string) => Promise<void>;
+	onSave: (source: string, slug: string, logoUrl?: string) => Promise<void>;
 	onClose: () => void;
 };
 
-const SOURCES = ['current', 'brandfetch', 'logodev', 'local'] as const;
+const SOURCES = ['current', 'brandfetch', 'logodev', 'appstore', 'playstore', 'web', 'inhouse'] as const;
 type Source = (typeof SOURCES)[number];
 
 const SOURCE_LABELS: Record<Source, string> = {
 	current: 'Current',
 	brandfetch: 'Brandfetch',
 	logodev: 'logo.dev',
-	local: 'Upload'
+	appstore: 'App Store',
+	playstore: 'Google Play',
+	web: 'Web',
+	inhouse: 'Upload'
 };
 
 type View = 'logo' | 'vectorize' | 'gradient';
@@ -46,11 +50,12 @@ const probeImage = (blobUrl: string): Promise<{ w: number; h: number }> =>
 		img.src = blobUrl;
 	});
 
-const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose }: Props) => {
+const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, onClose }: Props) => {
 	const [active, setActive] = useState<Source>('current');
 	const [logos, setLogos] = useState<Partial<Record<Source, LogoEntry>>>({});
 	const [loading, setLoading] = useState<Set<Source>>(new Set());
 	const [slugValue, setSlugValue] = useState(initialSlug);
+	const [searchQuery, setSearchQuery] = useState(defaultQuery);
 	const [saving, setSaving] = useState(false);
 	const [view, setView] = useState<View>('logo');
 	const [dragOver, setDragOver] = useState(false);
@@ -59,7 +64,7 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 	const selected = logos[active] ?? null;
 	const v = useVectorize({ blobUrl: selected?.blobUrl ?? '', slug: slugValue });
 
-	const addLogo = (source: Source, blob: Blob, blobUrl: string, dims: { w: number; h: number }) => {
+	const addLogo = (source: Source, blob: Blob, blobUrl: string, dims: { w: number; h: number }, originUrl?: string) => {
 		setLogos((p) => ({
 			...p,
 			[source]: {
@@ -68,7 +73,8 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 				size: blob.size,
 				width: dims.w,
 				height: dims.h,
-				format: blob.type.split('/').pop() ?? '?'
+				format: blob.type.split('/').pop() ?? '?',
+				originUrl
 			}
 		}));
 	};
@@ -101,23 +107,50 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 		[]
 	);
 
-	const fetchRemote = async (source: 'brandfetch' | 'logodev') => {
+	const fetchRemote = async (source: 'brandfetch' | 'logodev' | 'appstore' | 'playstore' | 'web') => {
 		if (loading.has(source)) return;
 		setLoading((p) => new Set(p).add(source));
 		try {
-			const res = await fetch(`${API_URL}/logos/fetch`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ domain, slug: slugValue, source })
-			});
-			if (!res.ok) throw new Error(`${res.status}`);
-			const data = await res.json();
-			const imgRes = await fetch(data.url);
+			let imageUrl: string;
+
+			if (source === 'appstore') {
+				const itunesRes = await fetch(
+					`https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=software&limit=1`
+				);
+				if (!itunesRes.ok) throw new Error(`iTunes: ${itunesRes.status}`);
+				const itunesData = await itunesRes.json();
+				const app = itunesData.results?.[0];
+				if (!app) throw new Error('Not found in App Store');
+				imageUrl = app.artworkUrl512 || app.artworkUrl100;
+				if (!imageUrl) throw new Error('No artwork available');
+			} else if (source === 'playstore' || source === 'web') {
+				// Use our search endpoint
+				const searchRes = await fetch(
+					`${API_URL}/search?q=${encodeURIComponent(searchQuery)}&sources=${source}`
+				);
+				if (!searchRes.ok) throw new Error(`${source}: ${searchRes.status}`);
+				const results = await searchRes.json();
+				const item = results?.[0];
+				if (!item) throw new Error(`Not found via ${source}`);
+				imageUrl = item.logo_url;
+				if (!imageUrl) throw new Error('No logo available');
+			} else {
+				const res = await fetch(`${API_URL}/logos/fetch`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ domain: searchQuery, slug: slugValue, source })
+				});
+				if (!res.ok) throw new Error(`${res.status}`);
+				const data = await res.json();
+				imageUrl = data.url;
+			}
+
+			const imgRes = await fetch(imageUrl);
 			if (!imgRes.ok) throw new Error('Not found');
 			const blob = await imgRes.blob();
 			const blobUrl = URL.createObjectURL(blob);
 			const dims = await probeImage(blobUrl);
-			addLogo(source, blob, blobUrl, dims);
+			addLogo(source, blob, blobUrl, dims, imageUrl);
 			setActive(source);
 		} catch (e) {
 			toast.error(`${source}: ${e instanceof Error ? e.message : 'Failed'}`);
@@ -130,18 +163,18 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 		}
 	};
 
-	const handleLocal = async (file: File) => {
+	const handleInhouse = async (file: File) => {
 		const blobUrl = URL.createObjectURL(file);
 		const dims = await probeImage(blobUrl);
-		addLogo('local', file, blobUrl, dims);
-		setActive('local');
+		addLogo('inhouse', file, blobUrl, dims);
+		setActive('inhouse');
 	};
 
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		setDragOver(false);
 		const file = e.dataTransfer.files[0];
-		if (file?.type.startsWith('image/')) handleLocal(file);
+		if (file?.type.startsWith('image/')) handleInhouse(file);
 	};
 
 	const handleSave = async () => {
@@ -149,7 +182,7 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 		if (!entry || saving || !slugValue.trim() || active === 'current') return;
 		setSaving(true);
 		try {
-			if (active === 'local') {
+			if (active === 'inhouse') {
 				const res = await fetch(entry.blobUrl);
 				const blob = await res.blob();
 				const up = await fetch(`${API_URL}/s3/upload/logos/${slugValue}.webp`, {
@@ -159,7 +192,7 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 				if (!up.ok) throw new Error(`Upload: ${up.status}`);
 				toast.success(`Saved logos/${slugValue}.webp`);
 			} else {
-				await onSave(active, slugValue);
+				await onSave(active, slugValue, entry.originUrl);
 			}
 			onClose();
 		} catch (e) {
@@ -174,11 +207,11 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
 			<div
-				className={`bg-surface rounded-2xl border border-border shadow-2xl max-w-[95vw] min-h-[900px] max-h-[90vh] overflow-hidden flex flex-col ${view === 'logo' ? 'w-[780px]' : 'w-[1100px]'}`}
+				className={`bg-surface rounded-2xl border border-border shadow-2xl max-w-[95vw] min-h-[900px] max-h-[90vh] overflow-hidden flex flex-col ${view === 'logo' ? 'w-[1100px]' : 'w-[1100px]'}`}
 				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Header + Tabs */}
-				<div className="flex items-center gap-8 px-8 py-5 border-b border-border shrink-0">
+				<div className="flex items-center gap-4 px-8 py-5 border-b border-border shrink-0">
 					<h2 className="text-lg font-bold text-foreground shrink-0">Logo Studio</h2>
 					{selected && (
 						<nav className="flex items-center gap-1.5">
@@ -201,7 +234,27 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 						</nav>
 					)}
 					<div className="flex-1" />
-					<span className="text-sm text-muted-fg shrink-0">{domain}</span>
+					<div className="flex items-center gap-1.5 shrink-0">
+						<span className="text-[11px] text-muted-fg/60 uppercase tracking-wider font-medium">Search</span>
+						<input
+							type="text"
+							value={searchQuery}
+							onChange={(e) => setSearchQuery(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter' && searchQuery.trim()) {
+									const src = active === 'current' || active === 'inhouse' ? undefined : active;
+									setLogos((p) => {
+										const next: Partial<Record<Source, LogoEntry>> = { current: p.current };
+										if (p.inhouse) next.inhouse = p.inhouse;
+										return next;
+									});
+									if (src) setTimeout(() => fetchRemote(src), 0);
+								}
+							}}
+							placeholder="domain or name..."
+							className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-1 focus:ring-accent/50"
+						/>
+					</div>
 					<button
 						type="button"
 						onClick={onClose}
@@ -251,21 +304,21 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 						</div>
 
 						{/* Source cards */}
-						<div className="grid grid-cols-4 gap-2 px-6 py-4 border-t border-border">
+						<div className="grid grid-cols-7 gap-1.5 px-6 py-4 border-t border-border">
 							{SOURCES.map((src) => {
 								const entry = logos[src];
 								const isActive = active === src;
 								const isLoading = loading.has(src);
-								const isLocal = src === 'local';
+								const isInhouse = src === 'inhouse';
 
 								return (
 									<button
 										key={src}
 										type="button"
 										onClick={() => {
-											if (isLocal && !entry) fileRef.current?.click();
+											if (isInhouse && !entry) fileRef.current?.click();
 											else if (entry) setActive(src);
-											else if (src === 'brandfetch' || src === 'logodev') fetchRemote(src);
+											else if (src === 'brandfetch' || src === 'logodev' || src === 'appstore' || src === 'playstore' || src === 'web') fetchRemote(src);
 										}}
 										className={`group rounded-xl border-2 p-3 transition-all cursor-pointer ${
 											isActive
@@ -282,7 +335,7 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 												) : isLoading ? (
 													<div className="size-4 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
 												) : (
-													<span className="text-muted-fg/30 text-lg">{isLocal ? '+' : '?'}</span>
+													<span className="text-muted-fg/30 text-lg">{isInhouse ? '+' : '?'}</span>
 												)}
 											</div>
 											<div className="text-left min-w-0">
@@ -294,7 +347,7 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 														? 'Loading...'
 														: entry
 															? formatSize(entry.size)
-															: isLocal
+															: isInhouse
 																? 'Drop or click'
 																: 'Click to fetch'}
 												</p>
@@ -311,7 +364,7 @@ const LogoStudio = ({ domain, slug: initialSlug, currentLogoUrl, onSave, onClose
 							accept="image/*"
 							className="hidden"
 							onChange={(e) => {
-								if (e.target.files?.[0]) handleLocal(e.target.files[0]);
+								if (e.target.files?.[0]) handleInhouse(e.target.files[0]);
 								e.target.value = '';
 							}}
 						/>

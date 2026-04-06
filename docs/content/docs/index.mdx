@@ -13,12 +13,18 @@ Full endpoint documentation is available in the [API Reference](/api-reference).
 
 ## How search works
 
-When a client sends `GET /search?q=spotify`, the API searches up to three sources **in parallel**:
+When a client sends `GET /search?q=spotify`, the API searches up to six sources **in parallel**:
 
 ```
-           ┌─── Local DB (PostgreSQL, pg_trgm) ──── ~50ms
+           ┌─── Inhouse DB (PostgreSQL, pg_trgm) ── ~50ms
            │
- request ──┼─── Brandfetch API ───────────────────── ~500ms
+ request ──┼─── App Store (iTunes Search API) ────── ~300ms
+           │
+           ├─── Google Play (HTML parsing) ────────── ~400ms
+           │
+           ├─── Web (OG / Twitter Card / favicon) ── ~500ms
+           │
+           ├─── Brandfetch API ───────────────────── ~500ms
            │
            └─── logo.dev API ─────────────────────── ~800ms
 ```
@@ -26,29 +32,51 @@ When a client sends `GET /search?q=spotify`, the API searches up to three source
 The `sources` parameter controls which sources are queried — as a comma-separated list:
 
 ```
-/search?q=spotify&sources=local,brandfetch
+/search?q=spotify&sources=inhouse,appstore,playstore
 ```
 
-Aliases: `external` (brandfetch + logodev), `all` (default — all three).
+Aliases: `external` (brandfetch + logodev + appstore + playstore + web), `mobile` (appstore + playstore), `all` (default — all six).
 
 Results are **deduplicated by domain** with priority:
 
 ```
-local  >  brandfetch  >  logo.dev
+inhouse  >  appstore  >  playstore  >  web  >  brandfetch  >  logo.dev
 ```
 
-If `spotify.com` appears in all three — only the local version is kept.
+If `spotify.com` appears in all five — only the inhouse version is kept. Mobile store results use package/bundle IDs as their identifier (e.g. `com.spotify.client`), so they don't conflict with domain-based results from other sources.
 
-Local (curated) services may have multiple domains — all of them are searchable and each one blocks external duplicates. External results always have a single domain and are **never merged** with each other to prevent search poisoning.
+Inhouse (curated) services may have multiple domains — all of them are searchable and each one blocks external duplicates. External results always have a single domain and are **never merged** with each other to prevent search poisoning.
+
+When 3+ sources return data, each external source is capped at **5 results** to avoid flooding. Inhouse results are not capped.
+
+### Mobile store metadata
+
+App Store and Google Play results carry extra metadata: `bundle_id`, `category_slug` (genres mapped to local categories), and `tags`. These fields are `null` for other sources. App Store results include the seller's domain (from `sellerUrl`) as the first entry in `domains`, followed by the bundle ID.
+
+Google Play has no public JSON API — results are extracted by parsing the Play Store HTML pages (meta tags + embedded data).
+
+### Service lookup
+
+`GET /service/{lookup}` resolves a service by UUID, slug, domain, or bundle ID. If not found locally, it searches external sources and stashes the result in the **limbus** (approval queue).
+
+For mobile apps or web domains, use `?source_hint=` to trigger an exact lookup:
+
+```
+/service/org.getpure.pure-iphone?source_hint=appstore
+/service/com.whatsapp?source_hint=playstore
+/service/notion.so?source_hint=web
+```
+
+Without a hint, the lookup only searches **brandfetch + logo.dev** (fast, domain-based sources). Mobile stores and web parsing require an explicit hint.
 
 ### Frontend strategy
 
 The client fires two sequential requests to keep the UI responsive:
 
-1. `GET /search?q=...&sources=local` — renders instantly (~50ms)
+1. `GET /search?q=...&sources=inhouse` — renders instantly (~50ms)
 2. `GET /search?q=...&sources=external` — appends results when ready (~1-2s)
 
-External results use a **deterministic UUID v5** derived from the domain, so React keys stay stable across requests.
+External results use a **deterministic UUID v5** derived from the domain (or bundleId for App Store), so React keys stay stable across requests.
 
 ## Quick Start
 
