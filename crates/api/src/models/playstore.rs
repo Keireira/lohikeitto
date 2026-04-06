@@ -4,7 +4,6 @@ pub struct PlayStoreApp {
     pub name: String,
     pub icon_url: String,
     pub description: Option<String>,
-    pub developer: Option<String>,
     pub category: Option<String>,
 }
 
@@ -39,10 +38,6 @@ pub fn parse_details_page(html: &str, package_name: &str) -> Option<PlayStoreApp
     let icon_url = extract_meta(html, "og:image").unwrap_or_default();
     let description = extract_meta(html, "og:description");
 
-    // Developer name: often in <a> with "developer" in href, or from JSON-LD
-    let developer = extract_between(html, r#""developer":""#, r#"""#)
-        .or_else(|| extract_between(html, r#","author":{"name":""#, r#"""#));
-
     // Category from the page (often in breadcrumb or JSON-LD)
     let category = extract_between(html, r#""genre":""#, r#"""#)
         .or_else(|| extract_between(html, r#""applicationCategory":""#, r#"""#));
@@ -52,7 +47,6 @@ pub fn parse_details_page(html: &str, package_name: &str) -> Option<PlayStoreApp
         name: html_unescape(name),
         icon_url: resize_play_icon(icon_url, 512),
         description: description.map(|d| html_unescape(d)),
-        developer: developer.map(|d| html_unescape(d)),
         category: category.map(|c| html_unescape(c)),
     })
 }
@@ -79,19 +73,25 @@ pub fn parse_search_page(html: &str) -> Vec<PlayStoreApp> {
             continue;
         }
 
-        // Look ahead for app name in nearby <span> or <div> with the title
-        // The title is usually in an aria-label or alt attribute on the same <a> tag
-        let context_start = html[..search_pos + pos].rfind('<').unwrap_or(0);
-        let context = &html[context_start..html.len().min(abs_pos + 2000)];
+        // The <a> tag containing this link has the structure:
+        //   <a href="...?id=PKG">
+        //     <div><img src="...=w416-h235" ...></div>   ← screenshot (skip)
+        //     <div><img src="...=s64" ...></div>          ← icon (want this)
+        //     <div><div><span>App Name</span></div>       ← name
+        //   </a>
+        // Look from the link forward to the closing </a>
+        let ahead = &html[abs_pos..html.len().min(abs_pos + 3000)];
+        let a_end = ahead.find("</a>").unwrap_or(ahead.len());
+        let card = &ahead[..a_end];
 
-        let name = extract_attr(context, "aria-label")
-            .or_else(|| extract_attr(context, "title"))
-            .unwrap_or_else(|| package_name.to_string());
-
-        // Look for icon URL (play-lh.googleusercontent.com) near this result
-        let icon_url = find_nearby_icon(context)
+        // Icon: find the img with =s64 or =s128 (thumbnail, not screenshot)
+        let icon_url = find_thumbnail_icon(card)
             .map(|u| resize_play_icon(&u, 512))
             .unwrap_or_default();
+
+        // Name: first <span> text that isn't a number or rating
+        let name = find_app_name(card)
+            .unwrap_or_else(|| package_name.to_string());
 
         if !name.is_empty() {
             results.push(PlayStoreApp {
@@ -99,7 +99,6 @@ pub fn parse_search_page(html: &str) -> Vec<PlayStoreApp> {
                 name: html_unescape(&name),
                 icon_url,
                 description: None,
-                developer: None,
                 category: None,
             });
         }
@@ -113,25 +112,50 @@ pub fn parse_search_page(html: &str) -> Vec<PlayStoreApp> {
     results
 }
 
-fn extract_attr(html: &str, attr: &str) -> Option<String> {
-    let needle = format!("{attr}=\"");
-    let pos = html.find(&needle)?;
-    let start = pos + needle.len();
-    let end = start + html[start..].find('"')?;
-    let val = &html[start..end];
-    if val.is_empty() { None } else { Some(val.to_string()) }
+/// Find the thumbnail icon (=s64 or =s128) in a card, skipping screenshot images (=w...-h...).
+fn find_thumbnail_icon(card: &str) -> Option<String> {
+    let marker = "play-lh.googleusercontent.com/";
+    let mut pos = 0;
+    while let Some(found) = card[pos..].find(marker) {
+        let abs = pos + found;
+        // Walk backwards to find URL start
+        let before = &card[..abs];
+        let url_start = before.rfind("https://").unwrap_or(abs);
+        let from_start = &card[url_start..];
+        let url_end = from_start.find(|c: char| c == '"' || c == '\'' || c == ' ').unwrap_or(from_start.len());
+        let url = &card[url_start..url_start + url_end];
+
+        // Skip screenshots (contain =w...-h...), want thumbnails (=s64, =s128)
+        if !url.contains("=w") {
+            return Some(url.to_string());
+        }
+        pos = abs + marker.len();
+    }
+    None
 }
 
-fn find_nearby_icon(context: &str) -> Option<String> {
-    let marker = "play-lh.googleusercontent.com/";
-    let pos = context.find(marker)?;
-    // Walk backwards to find the start of the URL (after src=" or srcset=")
-    let before = &context[..pos];
-    let url_start = before.rfind("https://").unwrap_or(pos);
-    // Walk forward to find the end of the URL
-    let from_start = &context[url_start..];
-    let url_end = from_start.find(|c: char| c == '"' || c == '\'' || c == ' ').unwrap_or(from_start.len());
-    Some(context[url_start..url_start + url_end].to_string())
+/// Find the app name: first <span> text that looks like an app name (not a rating or number).
+fn find_app_name(card: &str) -> Option<String> {
+    let mut search_pos = 0;
+    while let Some(span_start) = card[search_pos..].find("<span") {
+        let abs = search_pos + span_start;
+        let after_tag = &card[abs..];
+        let content_start = after_tag.find('>')? + 1;
+        let content = &after_tag[content_start..];
+        let end = content.find("</span>")?;
+        let text = content[..end].trim();
+
+        // Skip empty, numeric-only (ratings like "4.5"), or star labels
+        if !text.is_empty()
+            && !text.starts_with("star")
+            && text.parse::<f64>().is_err()
+            && !text.contains("Rated ")
+        {
+            return Some(html_unescape(text));
+        }
+        search_pos = abs + content_start + end;
+    }
+    None
 }
 
 /// Request a specific size from play-lh.googleusercontent.com by appending `=s{size}`.

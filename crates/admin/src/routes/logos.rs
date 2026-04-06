@@ -44,7 +44,7 @@ pub async fn fetch_logo(
                 req.domain, pk
             )
         }
-        "appstore" | "playstore" => req.logo_url.clone().ok_or_else(|| {
+        "appstore" | "playstore" | "web" => req.logo_url.clone().ok_or_else(|| {
             AdminError::Internal("logo_url is required for appstore/playstore source".into())
         })?,
         _ => {
@@ -90,7 +90,7 @@ pub async fn save_logo(
                 req.domain, pk
             )
         }
-        "appstore" | "playstore" => req.logo_url.clone().ok_or_else(|| {
+        "appstore" | "playstore" | "web" => req.logo_url.clone().ok_or_else(|| {
             AdminError::Internal("logo_url is required for appstore/playstore source".into())
         })?,
         _ => {

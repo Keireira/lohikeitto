@@ -12,6 +12,7 @@ use crate::models::appstore::{self, ITunesSearchResponse};
 use crate::models::brandfetch::BFSearchItem;
 use crate::models::logodev::LDSearchItem;
 use crate::models::playstore;
+use crate::models::web;
 use shared::models::service::ServiceRow;
 
 pub async fn search(
@@ -61,11 +62,19 @@ pub async fn search(
         }
     };
 
-    let (inhouse, mut brandfetch, mut logodev, mut appstore, mut playstore) =
-        tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut, ps_fut);
+    let web_fut = async {
+        if sources.has(Source::Web) {
+            search_web(http, q).await
+        } else {
+            vec![]
+        }
+    };
+
+    let (inhouse, mut brandfetch, mut logodev, mut appstore, mut playstore, mut web_results) =
+        tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut, ps_fut, web_fut);
 
     // When 3+ providers returned data, cap external sources to avoid flooding
-    let active = [&inhouse, &brandfetch, &logodev, &appstore, &playstore]
+    let active = [&inhouse, &brandfetch, &logodev, &appstore, &playstore, &web_results]
         .iter()
         .filter(|g| !g.is_empty())
         .count();
@@ -75,9 +84,10 @@ pub async fn search(
         logodev.truncate(CAP);
         appstore.truncate(CAP);
         playstore.truncate(CAP);
+        web_results.truncate(CAP);
     }
 
-    deduplicate(inhouse, brandfetch, logodev, appstore, playstore)
+    deduplicate(inhouse, brandfetch, logodev, appstore, playstore, web_results)
 }
 
 async fn search_inhouse(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchResult> {
@@ -112,8 +122,8 @@ async fn search_inhouse(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<Search
             source: "inhouse".into(),
             description: None,
             bundle_id: None,
-            seller_name: None,
-            seller_domain: None,
+
+
             category_slug: None,
             tags: None,
         })
@@ -165,8 +175,8 @@ async fn search_brandfetch(http: &Client, client_id: &str, q: &str) -> Vec<Searc
                 source: "brandfetch".into(),
                 description: None,
                 bundle_id: None,
-                seller_name: None,
-                seller_domain: None,
+    
+    
                 category_slug: None,
                 tags: None,
             }
@@ -209,8 +219,8 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
             source: "logo.dev".into(),
             description: None,
             bundle_id: None,
-            seller_name: None,
-            seller_domain: None,
+
+
             category_slug: None,
             tags: None,
         })
@@ -274,22 +284,24 @@ fn itunes_app_to_result(app: appstore::ITunesApp) -> SearchResult {
         .map(appstore::map_genres)
         .unwrap_or((None, vec![]));
 
-    let seller_domain = app.seller_url.as_deref().and_then(|u| {
+    let mut domains = Vec::with_capacity(2);
+    if let Some(sd) = app.seller_url.as_deref().and_then(|u| {
         url::Url::parse(u)
             .ok()
             .and_then(|parsed| parsed.host_str().map(|h| h.to_string()))
-    });
+    }) {
+        domains.push(sd);
+    }
+    domains.push(app.bundle_id.clone());
 
     SearchResult {
         id: Uuid::new_v5(&Uuid::NAMESPACE_URL, app.bundle_id.as_bytes()),
         logo_url,
         name: app.track_name,
-        domains: vec![app.bundle_id.clone()],
+        domains,
         source: "appstore".into(),
         description: app.description,
         bundle_id: Some(app.bundle_id),
-        seller_name: app.seller_name,
-        seller_domain,
         category_slug: category_slug.map(Into::into),
         tags: if tags.is_empty() { None } else { Some(tags) },
     }
@@ -364,15 +376,66 @@ fn playstore_app_to_result(app: playstore::PlayStoreApp) -> SearchResult {
         source: "playstore".into(),
         description: app.description,
         bundle_id: Some(app.package_name),
-        seller_name: app.developer,
-        seller_domain: None,
         category_slug: category_slug.map(Into::into),
         tags: if tags.is_empty() { None } else { Some(tags) },
     }
 }
 
+/// Web source: fetch a domain page and extract logo via OG/Twitter/favicon.
+async fn search_web(http: &Client, q: &str) -> Vec<SearchResult> {
+    // Web source only makes sense for domain-like queries
+    if !q.contains('.') {
+        return vec![];
+    }
+    match lookup_web(http, q).await {
+        Some(r) => vec![r],
+        None => vec![],
+    }
+}
+
+/// Fetch a domain and extract logo from OG/Twitter Card/favicon.
+async fn lookup_web(http: &Client, domain: &str) -> Option<SearchResult> {
+    let url_str = format!("https://{domain}");
+    let base_url = url::Url::parse(&url_str).ok()?;
+
+    let html = match http
+        .get(&url_str)
+        .header("Accept", "text/html")
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => resp.text().await.ok()?,
+        _ => return None,
+    };
+
+    let parsed = web::parse_logo(&html, &base_url)?;
+    if parsed.logo_url.is_empty() {
+        return None;
+    }
+
+    let name = if parsed.name.is_empty() {
+        domain.to_string()
+    } else {
+        parsed.name
+    };
+
+    Some(SearchResult {
+        id: Uuid::new_v5(&Uuid::NAMESPACE_URL, domain.as_bytes()),
+        logo_url: parsed.logo_url,
+        name,
+        domains: vec![domain.to_string()],
+        source: "web".into(),
+        description: None,
+        bundle_id: None,
+        category_slug: None,
+        tags: None,
+    })
+}
+
 /// Search external sources by domain, return first match.
 /// When `source_hint` is provided (e.g. "appstore"), uses exact lookup for that source.
+/// Without a hint, only searches brandfetch + logo.dev (fast, domain-based sources).
 pub async fn lookup_external(
     http: &Client,
     config: &Config,
@@ -382,38 +445,45 @@ pub async fn lookup_external(
     match source_hint {
         Some("appstore") => return lookup_appstore(http, domain).await,
         Some("playstore") => return lookup_playstore(http, domain).await,
+        Some("web") => return lookup_web(http, domain).await,
         _ => {}
     }
 
-    let (bf, ld, appstore, ps) = tokio::join!(
+    // Without source_hint: only fast domain-based sources
+    let (bf, ld) = tokio::join!(
         search_brandfetch(http, &config.brandfetch_client_id, domain),
         search_logodev(http, &config.logodev_pk, &config.logodev_sk, domain),
-        search_appstore(http, domain),
-        search_playstore(http, domain),
     );
 
-    appstore.into_iter().chain(ps).chain(bf).chain(ld).next()
+    bf.into_iter().chain(ld).next()
 }
 
 /// Deduplicate by domain. Local results may have multiple domains — each one
-/// blocks external duplicates. Priority: inhouse > appstore > playstore > brandfetch > logo.dev.
+/// blocks external duplicates.
+/// Priority: inhouse > appstore > playstore > web > brandfetch > logo.dev.
+/// Normalize a domain for dedup comparison: strip `www.` prefix, lowercase.
+fn normalize_domain(d: &str) -> String {
+    let d = d.to_ascii_lowercase();
+    d.strip_prefix("www.").unwrap_or(&d).to_string()
+}
+
 fn deduplicate(
     inhouse: Vec<SearchResult>,
     brandfetch: Vec<SearchResult>,
     logodev: Vec<SearchResult>,
     appstore: Vec<SearchResult>,
     playstore: Vec<SearchResult>,
+    web: Vec<SearchResult>,
 ) -> Vec<SearchResult> {
     let mut seen: HashSet<String> = HashSet::new();
     let mut results: Vec<SearchResult> = Vec::new();
 
-    for group in [inhouse, appstore, playstore, brandfetch, logodev] {
+    for group in [inhouse, appstore, playstore, web, brandfetch, logodev] {
         for item in group {
-            // Local results claim all their domains at once
-            let dominated = item.domains.iter().all(|d| seen.contains(d));
+            let dominated = item.domains.iter().any(|d| seen.contains(&normalize_domain(d)));
             if !dominated {
                 for d in &item.domains {
-                    seen.insert(d.clone());
+                    seen.insert(normalize_domain(d));
                 }
                 results.push(item);
             }

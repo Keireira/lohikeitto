@@ -11,6 +11,7 @@ pub enum Source {
     Logodev,
     AppStore,
     PlayStore,
+    Web,
 }
 
 #[derive(Debug)]
@@ -41,6 +42,9 @@ impl SearchSources {
                 "playstore" => {
                     set.insert(Source::PlayStore);
                 }
+                "web" => {
+                    set.insert(Source::Web);
+                }
                 "mobile" => {
                     set.insert(Source::AppStore);
                     set.insert(Source::PlayStore);
@@ -50,6 +54,7 @@ impl SearchSources {
                     set.insert(Source::Logodev);
                     set.insert(Source::AppStore);
                     set.insert(Source::PlayStore);
+                    set.insert(Source::Web);
                 }
                 "all" => {
                     set.insert(Source::Inhouse);
@@ -57,6 +62,7 @@ impl SearchSources {
                     set.insert(Source::Logodev);
                     set.insert(Source::AppStore);
                     set.insert(Source::PlayStore);
+                    set.insert(Source::Web);
                 }
                 other => return Err(format!("unknown source: {other}")),
             }
@@ -116,14 +122,6 @@ pub struct SearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable)]
     pub bundle_id: Option<String>,
-    /// Seller / developer name (appstore/playstore)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(nullable)]
-    pub seller_name: Option<String>,
-    /// Seller website domain extracted from sellerUrl (appstore/playstore)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(nullable)]
-    pub seller_domain: Option<String>,
     /// Matched category slug (appstore/playstore)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable)]

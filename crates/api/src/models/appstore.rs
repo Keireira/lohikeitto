@@ -22,8 +22,6 @@ pub struct ITunesApp {
     pub seller_url: Option<String>,
     pub description: Option<String>,
     pub genres: Option<Vec<String>>,
-    #[serde(rename = "sellerName")]
-    pub seller_name: Option<String>,
     #[serde(rename = "averageUserRating")]
     pub average_user_rating: Option<f64>,
     #[serde(rename = "userRatingCount")]

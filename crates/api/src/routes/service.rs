@@ -197,19 +197,13 @@ pub async fn get(
     .await?
     .unwrap_or(result.id);
 
-    // Use seller_domain as service domain if available, otherwise use lookup key
-    let response_domains = result
-        .seller_domain
-        .map(|d| vec![d])
-        .unwrap_or_else(|| vec![domain.clone()]);
-
     Ok(Json(ServiceResponse {
         id: limbus_id,
         name: result.name,
         slug: String::new(),
         bundle_id: result.bundle_id,
         description: result.description,
-        domains: response_domains,
+        domains: if result.domains.is_empty() { vec![domain.clone()] } else { result.domains },
         alternative_names: vec![],
         tags: result.tags.unwrap_or_default(),
         verified: false,

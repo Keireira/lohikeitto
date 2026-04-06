@@ -24,6 +24,7 @@ const SourceBadge = ({ source }: { source: string }) => {
 		'logo.dev': 'bg-purple-500/10 text-purple-500',
 		appstore: 'bg-sky-500/10 text-sky-500',
 		playstore: 'bg-green-500/10 text-green-500',
+		web: 'bg-orange-500/10 text-orange-500',
 		discovered: 'bg-amber-500/10 text-amber-500'
 	};
 	return (
