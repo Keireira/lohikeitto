@@ -23,7 +23,11 @@ pub fn parse_logo(html: &str, base_url: &url::Url) -> Option<WebLogo> {
         Some(url) => resolve_url(base_url, &url),
         None => {
             // Fallback: try common favicon paths
-            format!("{}://{}/favicon.ico", base_url.scheme(), base_url.host_str()?)
+            format!(
+                "{}://{}/favicon.ico",
+                base_url.scheme(),
+                base_url.host_str()?
+            )
         }
     };
 
@@ -31,10 +35,7 @@ pub fn parse_logo(html: &str, base_url: &url::Url) -> Option<WebLogo> {
         return None;
     }
 
-    Some(WebLogo {
-        name,
-        logo_url,
-    })
+    Some(WebLogo { name, logo_url })
 }
 
 /// Extract content from `<meta property="..." content="...">` or `<meta name="..." content="...">`.
@@ -97,8 +98,7 @@ fn find_apple_touch_icon(html: &str) -> Option<String> {
 
 /// Find favicon from <link rel="icon" ...> or <link rel="shortcut icon" ...>.
 fn find_favicon_link(html: &str) -> Option<String> {
-    find_link_by_rel(html, "icon")
-        .or_else(|| find_link_by_rel(html, "shortcut icon"))
+    find_link_by_rel(html, "icon").or_else(|| find_link_by_rel(html, "shortcut icon"))
 }
 
 /// Find a <link> tag with a specific rel value and extract its href.
@@ -127,7 +127,11 @@ fn find_link_by_rel(html: &str, rel: &str) -> Option<String> {
 
     let end = after_href[start..].find(quote)?;
     let href = &after_href[start..start + end];
-    if href.is_empty() { None } else { Some(href.to_string()) }
+    if href.is_empty() {
+        None
+    } else {
+        Some(href.to_string())
+    }
 }
 
 /// Resolve a potentially relative URL against a base URL.
