@@ -111,7 +111,7 @@ pub struct SearchResult {
     pub name: String,
     /// Service domains. Inhouse (curated) results may have multiple; external results always have one.
     pub domains: Vec<String>,
-    /// Result source: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, or `playstore`
+    /// Result source: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, `playstore`, or `web`
     #[schema(example = "inhouse")]
     pub source: String,
     /// Service description — not included in search response, used internally for limbus

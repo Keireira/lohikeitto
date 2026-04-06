@@ -43,17 +43,28 @@ Results are **deduplicated by domain** with priority:
 inhouse  >  appstore  >  playstore  >  web  >  brandfetch  >  logo.dev
 ```
 
-If `spotify.com` appears in all five — only the inhouse version is kept. Mobile store results use package/bundle IDs as their identifier (e.g. `com.spotify.client`), so they don't conflict with domain-based results from other sources.
+If a domain appears in multiple sources — only the highest-priority version is kept. Domains are **normalized** before comparison (`www.` prefix is stripped, case-insensitive), so `www.okcupid.com` and `okcupid.com` are treated as the same domain. If **any** domain of an external result is already claimed by a higher-priority source, the entire result is dropped.
 
-Inhouse (curated) services may have multiple domains — all of them are searchable and each one blocks external duplicates. External results always have a single domain and are **never merged** with each other to prevent search poisoning.
+Mobile store results use package/bundle IDs as their identifier (e.g. `com.spotify.client`), so they generally don't conflict with domain-based results. App Store results additionally include the seller's domain (from `sellerUrl`) as the **first** entry in `domains` — this enables dedup against inhouse services that share the same domain.
 
 When 3+ sources return data, each external source is capped at **5 results** to avoid flooding. Inhouse results are not capped.
 
-### Mobile store metadata
+### Source details
 
-App Store and Google Play results carry extra metadata: `bundle_id`, `category_slug` (genres mapped to local categories), and `tags`. These fields are `null` for other sources. App Store results include the seller's domain (from `sellerUrl`) as the first entry in `domains`, followed by the bundle ID.
+| Source | Type | Search | Lookup | API key needed |
+|--------|------|--------|--------|----------------|
+| **inhouse** | PostgreSQL (pg_trgm) | Name, slug, domain, alternative names, bundle ID | UUID, slug, domain | No |
+| **appstore** | iTunes Search API (JSON) | Keyword search | Exact by `bundleId` | No |
+| **playstore** | Google Play (HTML parsing) | Search page parsing | Details page meta tags | No |
+| **web** | Direct HTTP fetch | Domain-only (requires `.` in query) | OG/Twitter Card/favicon | No |
+| **brandfetch** | Brandfetch API (JSON) | Keyword search | Via search | `BRANDFETCH_CLIENT_ID` |
+| **logo.dev** | logo.dev API (JSON) | Keyword search | Via search | `LOGODEV_PK`, `LOGODEV_SK` |
 
-Google Play has no public JSON API — results are extracted by parsing the Play Store HTML pages (meta tags + embedded data).
+**Web source** fetches `https://{domain}` and extracts logos with priority: `og:image` → `twitter:image` → `apple-touch-icon` → `<link rel="icon">` → `/favicon.ico`. The site name is taken from `og:site_name` / `og:title` / `<title>`.
+
+**App Store** metadata includes `bundle_id`, `category_slug` (Apple genres mapped to local categories), and `tags`.
+
+**Google Play** has no public JSON API — results are extracted by parsing HTML. Icon URLs are resized to 512px via the `=s512` suffix on `play-lh.googleusercontent.com`.
 
 ### Service lookup
 
