@@ -43,10 +43,10 @@ fn extract_meta(html: &str, property: &str) -> Option<String> {
         let needle = format!(r#"{attr}="{property}""#);
         if let Some(pos) = html.find(&needle) {
             let after = &html[pos + needle.len()..];
-            if let Some(content) = extract_content_attr(after) {
-                if !content.is_empty() {
-                    return Some(html_unescape(&content));
-                }
+            if let Some(content) = extract_content_attr(after)
+                && !content.is_empty()
+            {
+                return Some(html_unescape(&content));
             }
         }
     }

@@ -192,7 +192,7 @@ pub async fn get(
     .bind(&result.description)
     .bind(&result.bundle_id)
     .bind(&result.category_slug)
-    .bind(&result.tags.as_deref().unwrap_or_default())
+    .bind(result.tags.as_deref().unwrap_or_default())
     .fetch_optional(&state.db)
     .await?
     .unwrap_or(result.id);

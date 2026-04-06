@@ -46,8 +46,8 @@ pub fn parse_details_page(html: &str, package_name: &str) -> Option<PlayStoreApp
         package_name: package_name.to_string(),
         name: html_unescape(name),
         icon_url: resize_play_icon(icon_url, 512),
-        description: description.map(|d| html_unescape(d)),
-        category: category.map(|c| html_unescape(c)),
+        description: description.map(html_unescape),
+        category: category.map(html_unescape),
     })
 }
 
@@ -64,7 +64,7 @@ pub fn parse_search_page(html: &str) -> Vec<PlayStoreApp> {
 
         // Extract package name (ends at " or &)
         let pkg_end = remaining
-            .find(|c: char| c == '"' || c == '&')
+            .find(['"', '&'])
             .unwrap_or(remaining.len().min(256));
         let package_name = &remaining[..pkg_end];
 
@@ -122,7 +122,7 @@ fn find_thumbnail_icon(card: &str) -> Option<String> {
         let before = &card[..abs];
         let url_start = before.rfind("https://").unwrap_or(abs);
         let from_start = &card[url_start..];
-        let url_end = from_start.find(|c: char| c == '"' || c == '\'' || c == ' ').unwrap_or(from_start.len());
+        let url_end = from_start.find(['"', '\'', ' ']).unwrap_or(from_start.len());
         let url = &card[url_start..url_start + url_end];
 
         // Skip screenshots (contain =w...-h...), want thumbnails (=s64, =s128)
