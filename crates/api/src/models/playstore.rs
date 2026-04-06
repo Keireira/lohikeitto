@@ -68,7 +68,12 @@ pub fn parse_search_page(html: &str) -> Vec<PlayStoreApp> {
             .unwrap_or(remaining.len().min(256));
         let package_name = &remaining[..pkg_end];
 
-        if package_name.is_empty() || package_name.len() > 256 || results.iter().any(|r: &PlayStoreApp| r.package_name == package_name) {
+        if package_name.is_empty()
+            || package_name.len() > 256
+            || results
+                .iter()
+                .any(|r: &PlayStoreApp| r.package_name == package_name)
+        {
             search_pos = abs_pos;
             continue;
         }
@@ -90,8 +95,7 @@ pub fn parse_search_page(html: &str) -> Vec<PlayStoreApp> {
             .unwrap_or_default();
 
         // Name: first <span> text that isn't a number or rating
-        let name = find_app_name(card)
-            .unwrap_or_else(|| package_name.to_string());
+        let name = find_app_name(card).unwrap_or_else(|| package_name.to_string());
 
         if !name.is_empty() {
             results.push(PlayStoreApp {
@@ -122,7 +126,9 @@ fn find_thumbnail_icon(card: &str) -> Option<String> {
         let before = &card[..abs];
         let url_start = before.rfind("https://").unwrap_or(abs);
         let from_start = &card[url_start..];
-        let url_end = from_start.find(['"', '\'', ' ']).unwrap_or(from_start.len());
+        let url_end = from_start
+            .find(['"', '\'', ' '])
+            .unwrap_or(from_start.len());
         let url = &card[url_start..url_start + url_end];
 
         // Skip screenshots (contain =w...-h...), want thumbnails (=s64, =s128)
@@ -145,8 +151,9 @@ fn find_app_name(card: &str) -> Option<String> {
         let end = content.find("</span>")?;
         let text = content[..end].trim();
 
-        // Skip empty, numeric-only (ratings like "4.5"), or star labels
+        // Skip empty, HTML tags (inline SVG etc.), numeric-only (ratings), star labels
         if !text.is_empty()
+            && !text.starts_with('<')
             && !text.starts_with("star")
             && text.parse::<f64>().is_err()
             && !text.contains("Rated ")

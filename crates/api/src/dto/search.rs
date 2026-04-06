@@ -127,7 +127,7 @@ pub struct SearchResult {
     #[schema(nullable)]
     pub category_slug: Option<String>,
     /// Genre-derived tags (appstore/playstore)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing)]
     #[schema(nullable)]
     pub tags: Option<Vec<String>>,
 }

@@ -9,7 +9,7 @@ use uuid::Uuid;
     "slug": "adguard",
     "domains": ["adguard.com"],
     "verified": true,
-    "category": "security",
+    "category_slug": "security",
     "colors": {"primary": "#000000"},
     "logo_url": "https://s3.uha.app/logos/adguard.webp",
     "ref_link": null
@@ -27,7 +27,7 @@ pub struct ServiceResponse {
     pub alternative_names: Vec<String>,
     pub tags: Vec<String>,
     pub verified: bool,
-    pub category: Option<String>,
+    pub category_slug: Option<String>,
     pub colors: serde_json::Value,
     pub social_links: serde_json::Value,
     pub logo_url: String,

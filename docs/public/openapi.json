@@ -57,7 +57,7 @@
           "Search"
         ],
         "summary": "Search services",
-        "description": "Search for services across inhouse database and external APIs (Brandfetch, logo.dev, App Store, Google Play). Results are deduplicated by domain with priority: inhouse > appstore > playstore > brandfetch > logo.dev. Inhouse (curated) services may have multiple domains; external results always have one.",
+        "description": "Search for services across inhouse database and external sources (Brandfetch, logo.dev, App Store, Google Play, Web). Results are deduplicated by domain (www. stripped) with priority: inhouse > appstore > playstore > web > brandfetch > logo.dev.",
         "operationId": "search",
         "parameters": [
           {
@@ -72,7 +72,7 @@
           {
             "name": "sources",
             "in": "query",
-            "description": "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`, `playstore`. Aliases: `external` (brandfetch + logodev + appstore + playstore), `mobile` (appstore + playstore), `all` (default)",
+            "description": "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`, `playstore`, `web`. Aliases: `external` (all external), `mobile` (appstore + playstore), `all` (default)",
             "required": true,
             "schema": {
               "type": "string"
@@ -123,7 +123,7 @@
           "Services"
         ],
         "summary": "Get a service by ID or domain",
-        "description": "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources (Brandfetch, logo.dev, App Store, Google Play) and adds the result to the approval queue. Use `?source_hint=appstore` or `?source_hint=playstore` for exact package ID lookup.",
+        "description": "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources and adds the result to the approval queue. Without `source_hint`, only brandfetch + logo.dev are searched. Use `source_hint` for App Store (`appstore`), Google Play (`playstore`), or direct web scraping (`web`).",
         "operationId": "get",
         "parameters": [
           {
@@ -138,7 +138,7 @@
           {
             "name": "source_hint",
             "in": "query",
-            "description": "Hint which external source to use for lookup (e.g. `appstore`)",
+            "description": "External source for exact lookup: `appstore`, `playstore`, or `web`",
             "required": false,
             "schema": {
               "type": "string"
@@ -281,18 +281,8 @@
           },
           "source": {
             "type": "string",
-            "description": "Result source: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, or `playstore`",
+            "description": "Result source: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, `playstore`, or `web`",
             "example": "inhouse"
-          },
-          "tags": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "description": "Genre-derived tags (appstore/playstore)"
           }
         },
         "example": {
@@ -332,7 +322,7 @@
               "null"
             ]
           },
-          "category": {
+          "category_slug": {
             "type": [
               "string",
               "null"
@@ -376,7 +366,7 @@
           }
         },
         "example": {
-          "category": "security",
+          "category_slug": "security",
           "colors": {
             "primary": "#000000"
           },

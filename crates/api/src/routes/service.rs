@@ -63,7 +63,7 @@ fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
         social_links: row.social_links,
         logo_url,
         ref_link: row.ref_link,
-        category: row.category_slug,
+        category_slug: row.category_slug,
     }
 }
 
@@ -82,7 +82,7 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
         social_links: serde_json::json!({}),
         logo_url: row.logo_url.unwrap_or_default(),
         ref_link: None,
-        category: row.category_slug,
+        category_slug: row.category_slug,
     }
 }
 
@@ -203,7 +203,11 @@ pub async fn get(
         slug: String::new(),
         bundle_id: result.bundle_id,
         description: result.description,
-        domains: if result.domains.is_empty() { vec![domain.clone()] } else { result.domains },
+        domains: if result.domains.is_empty() {
+            vec![domain.clone()]
+        } else {
+            result.domains
+        },
         alternative_names: vec![],
         tags: result.tags.unwrap_or_default(),
         verified: false,
@@ -211,6 +215,6 @@ pub async fn get(
         social_links: serde_json::json!({}),
         logo_url: result.logo_url,
         ref_link: None,
-        category: result.category_slug,
+        category_slug: result.category_slug,
     }))
 }

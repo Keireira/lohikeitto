@@ -74,12 +74,21 @@ pub async fn search(
         tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut, ps_fut, web_fut);
 
     // When 3+ providers returned data, cap external sources to avoid flooding
-    let active = [&inhouse, &brandfetch, &logodev, &appstore, &playstore, &web_results]
-        .iter()
-        .filter(|g| !g.is_empty())
-        .count();
+    let active = [
+        &inhouse,
+        &brandfetch,
+        &logodev,
+        &appstore,
+        &playstore,
+        &web_results,
+    ]
+    .iter()
+    .filter(|g| !g.is_empty())
+    .count();
+
     if active >= 3 {
         const CAP: usize = 5;
+
         brandfetch.truncate(CAP);
         logodev.truncate(CAP);
         appstore.truncate(CAP);
@@ -87,7 +96,14 @@ pub async fn search(
         web_results.truncate(CAP);
     }
 
-    deduplicate(inhouse, brandfetch, logodev, appstore, playstore, web_results)
+    deduplicate(
+        inhouse,
+        brandfetch,
+        logodev,
+        appstore,
+        playstore,
+        web_results,
+    )
 }
 
 async fn search_inhouse(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchResult> {
@@ -122,7 +138,6 @@ async fn search_inhouse(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<Search
             source: "inhouse".into(),
             description: None,
             bundle_id: None,
-
 
             category_slug: None,
             tags: None,
@@ -175,8 +190,8 @@ async fn search_brandfetch(http: &Client, client_id: &str, q: &str) -> Vec<Searc
                 source: "brandfetch".into(),
                 description: None,
                 bundle_id: None,
-    
-    
+
+
                 category_slug: None,
                 tags: None,
             }
@@ -219,7 +234,6 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
             source: "logo.dev".into(),
             description: None,
             bundle_id: None,
-
 
             category_slug: None,
             tags: None,
@@ -266,10 +280,7 @@ async fn lookup_appstore(http: &Client, bundle_id: &str) -> Option<SearchResult>
         _ => return None,
     };
 
-    resp.results
-        .into_iter()
-        .next()
-        .map(itunes_app_to_result)
+    resp.results.into_iter().next().map(itunes_app_to_result)
 }
 
 fn itunes_app_to_result(app: appstore::ITunesApp) -> SearchResult {
@@ -357,10 +368,7 @@ async fn lookup_playstore(http: &Client, package_name: &str) -> Option<SearchRes
 }
 
 fn playstore_app_to_result(app: playstore::PlayStoreApp) -> SearchResult {
-    let category_slug = app
-        .category
-        .as_deref()
-        .and_then(playstore::map_category);
+    let category_slug = app.category.as_deref().and_then(playstore::map_category);
 
     let tags: Vec<String> = app
         .category
@@ -480,7 +488,10 @@ fn deduplicate(
 
     for group in [inhouse, appstore, playstore, web, brandfetch, logodev] {
         for item in group {
-            let dominated = item.domains.iter().any(|d| seen.contains(&normalize_domain(d)));
+            let dominated = item
+                .domains
+                .iter()
+                .any(|d| seen.contains(&normalize_domain(d)));
             if !dominated {
                 for d in &item.domains {
                     seen.insert(normalize_domain(d));
