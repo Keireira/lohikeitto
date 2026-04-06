@@ -13,12 +13,14 @@ Full endpoint documentation is available in the [API Reference](/api-reference).
 
 ## How search works
 
-When a client sends `GET /search?q=spotify`, the API searches up to four sources **in parallel**:
+When a client sends `GET /search?q=spotify`, the API searches up to five sources **in parallel**:
 
 ```
            ┌─── Inhouse DB (PostgreSQL, pg_trgm) ── ~50ms
            │
  request ──┼─── App Store (iTunes Search API) ────── ~300ms
+           │
+           ├─── Google Play (HTML parsing) ────────── ~400ms
            │
            ├─── Brandfetch API ───────────────────── ~500ms
            │
@@ -28,35 +30,38 @@ When a client sends `GET /search?q=spotify`, the API searches up to four sources
 The `sources` parameter controls which sources are queried — as a comma-separated list:
 
 ```
-/search?q=spotify&sources=inhouse,appstore
+/search?q=spotify&sources=inhouse,appstore,playstore
 ```
 
-Aliases: `external` (brandfetch + logodev + appstore), `mobile` (appstore), `all` (default — all four).
+Aliases: `external` (brandfetch + logodev + appstore + playstore), `mobile` (appstore + playstore), `all` (default — all five).
 
 Results are **deduplicated by domain** with priority:
 
 ```
-inhouse  >  appstore  >  brandfetch  >  logo.dev
+inhouse  >  appstore  >  playstore  >  brandfetch  >  logo.dev
 ```
 
-If `spotify.com` appears in all four — only the inhouse version is kept. App Store results use `bundleId` as their identifier (e.g. `com.spotify.client`), so they don't conflict with domain-based results from other sources.
+If `spotify.com` appears in all five — only the inhouse version is kept. Mobile store results use package/bundle IDs as their identifier (e.g. `com.spotify.client`), so they don't conflict with domain-based results from other sources.
 
 Inhouse (curated) services may have multiple domains — all of them are searchable and each one blocks external duplicates. External results always have a single domain and are **never merged** with each other to prevent search poisoning.
 
 When 3+ sources return data, each external source is capped at **5 results** to avoid flooding. Inhouse results are not capped.
 
-### App Store metadata
+### Mobile store metadata
 
-App Store results carry extra metadata from the iTunes API: `description`, `bundle_id`, `seller_name`, `seller_domain` (extracted from `sellerUrl`), `category_slug` (Apple genres mapped to local categories), and `tags`. These fields are `null` for other sources.
+App Store and Google Play results carry extra metadata: `description`, `bundle_id`, `seller_name`, `seller_domain` (App Store only, from `sellerUrl`), `category_slug` (genres mapped to local categories), and `tags`. These fields are `null` for other sources.
+
+Google Play has no public JSON API — results are extracted by parsing the Play Store HTML pages (meta tags + embedded data).
 
 ### Service lookup
 
 `GET /service/{lookup}` resolves a service by UUID, slug, domain, or bundle ID. If not found locally, it searches external sources and stashes the result in the **limbus** (approval queue).
 
-For App Store apps, use `?source_hint=appstore` to trigger an exact lookup via the iTunes Lookup API (`bundleId` match) instead of fuzzy search:
+For mobile apps, use `?source_hint=` to trigger an exact lookup by package/bundle ID:
 
 ```
 /service/org.getpure.pure-iphone?source_hint=appstore
+/service/com.whatsapp?source_hint=playstore
 ```
 
 Without the hint, the lookup falls back to fuzzy search across all external sources.

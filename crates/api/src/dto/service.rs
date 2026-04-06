@@ -19,6 +19,9 @@ pub struct ServiceResponse {
     pub name: String,
     pub slug: String,
     pub bundle_id: Option<String>,
+    #[serde(skip_serializing)]
+    #[schema(ignore)]
+    #[allow(dead_code)]
     pub description: Option<String>,
     pub domains: Vec<String>,
     pub alternative_names: Vec<String>,

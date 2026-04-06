@@ -11,6 +11,7 @@ use crate::dto::search::{SearchResult, SearchSources, Source};
 use crate::models::appstore::{self, ITunesSearchResponse};
 use crate::models::brandfetch::BFSearchItem;
 use crate::models::logodev::LDSearchItem;
+use crate::models::playstore;
 use shared::models::service::ServiceRow;
 
 pub async fn search(
@@ -52,11 +53,19 @@ pub async fn search(
         }
     };
 
-    let (inhouse, mut brandfetch, mut logodev, mut appstore) =
-        tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut);
+    let ps_fut = async {
+        if sources.has(Source::PlayStore) {
+            search_playstore(http, q).await
+        } else {
+            vec![]
+        }
+    };
+
+    let (inhouse, mut brandfetch, mut logodev, mut appstore, mut playstore) =
+        tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut, ps_fut);
 
     // When 3+ providers returned data, cap external sources to avoid flooding
-    let active = [&inhouse, &brandfetch, &logodev, &appstore]
+    let active = [&inhouse, &brandfetch, &logodev, &appstore, &playstore]
         .iter()
         .filter(|g| !g.is_empty())
         .count();
@@ -65,9 +74,10 @@ pub async fn search(
         brandfetch.truncate(CAP);
         logodev.truncate(CAP);
         appstore.truncate(CAP);
+        playstore.truncate(CAP);
     }
 
-    deduplicate(inhouse, brandfetch, logodev, appstore)
+    deduplicate(inhouse, brandfetch, logodev, appstore, playstore)
 }
 
 async fn search_inhouse(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchResult> {
@@ -285,6 +295,82 @@ fn itunes_app_to_result(app: appstore::ITunesApp) -> SearchResult {
     }
 }
 
+async fn search_playstore(http: &Client, q: &str) -> Vec<SearchResult> {
+    let url = format!(
+        "https://play.google.com/store/search?q={}&c=apps&hl=en",
+        url::form_urlencoded::byte_serialize(q.as_bytes()).collect::<String>()
+    );
+
+    let html = match http
+        .get(&url)
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => resp.text().await.unwrap_or_default(),
+        Ok(resp) => {
+            warn!(status = %resp.status(), "playstore search returned error");
+            return vec![];
+        }
+        Err(e) => {
+            warn!(error = %e, "playstore search request failed");
+            return vec![];
+        }
+    };
+
+    playstore::parse_search_page(&html)
+        .into_iter()
+        .map(playstore_app_to_result)
+        .collect()
+}
+
+/// Exact lookup by package name via Google Play details page.
+async fn lookup_playstore(http: &Client, package_name: &str) -> Option<SearchResult> {
+    let url = format!(
+        "https://play.google.com/store/apps/details?id={}&hl=en",
+        package_name
+    );
+
+    let html = match http
+        .get(&url)
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => resp.text().await.ok()?,
+        _ => return None,
+    };
+
+    playstore::parse_details_page(&html, package_name).map(playstore_app_to_result)
+}
+
+fn playstore_app_to_result(app: playstore::PlayStoreApp) -> SearchResult {
+    let category_slug = app
+        .category
+        .as_deref()
+        .and_then(playstore::map_category);
+
+    let tags: Vec<String> = app
+        .category
+        .iter()
+        .map(|c| c.to_lowercase().replace(' ', "-").replace('&', "and"))
+        .collect();
+
+    SearchResult {
+        id: Uuid::new_v5(&Uuid::NAMESPACE_URL, app.package_name.as_bytes()),
+        logo_url: app.icon_url,
+        name: app.name,
+        domains: vec![app.package_name.clone()],
+        source: "playstore".into(),
+        description: app.description,
+        bundle_id: Some(app.package_name),
+        seller_name: app.developer,
+        seller_domain: None,
+        category_slug: category_slug.map(Into::into),
+        tags: if tags.is_empty() { None } else { Some(tags) },
+    }
+}
+
 /// Search external sources by domain, return first match.
 /// When `source_hint` is provided (e.g. "appstore"), uses exact lookup for that source.
 pub async fn lookup_external(
@@ -293,31 +379,35 @@ pub async fn lookup_external(
     domain: &str,
     source_hint: Option<&str>,
 ) -> Option<SearchResult> {
-    if source_hint == Some("appstore") {
-        return lookup_appstore(http, domain).await;
+    match source_hint {
+        Some("appstore") => return lookup_appstore(http, domain).await,
+        Some("playstore") => return lookup_playstore(http, domain).await,
+        _ => {}
     }
 
-    let (bf, ld, appstore) = tokio::join!(
+    let (bf, ld, appstore, ps) = tokio::join!(
         search_brandfetch(http, &config.brandfetch_client_id, domain),
         search_logodev(http, &config.logodev_pk, &config.logodev_sk, domain),
         search_appstore(http, domain),
+        search_playstore(http, domain),
     );
 
-    appstore.into_iter().chain(bf).chain(ld).next()
+    appstore.into_iter().chain(ps).chain(bf).chain(ld).next()
 }
 
 /// Deduplicate by domain. Local results may have multiple domains — each one
-/// blocks external duplicates. Priority: inhouse > appstore > brandfetch > logo.dev.
+/// blocks external duplicates. Priority: inhouse > appstore > playstore > brandfetch > logo.dev.
 fn deduplicate(
     inhouse: Vec<SearchResult>,
     brandfetch: Vec<SearchResult>,
     logodev: Vec<SearchResult>,
     appstore: Vec<SearchResult>,
+    playstore: Vec<SearchResult>,
 ) -> Vec<SearchResult> {
     let mut seen: HashSet<String> = HashSet::new();
     let mut results: Vec<SearchResult> = Vec::new();
 
-    for group in [inhouse, appstore, brandfetch, logodev] {
+    for group in [inhouse, appstore, playstore, brandfetch, logodev] {
         for item in group {
             // Local results claim all their domains at once
             let dominated = item.domains.iter().all(|d| seen.contains(d));

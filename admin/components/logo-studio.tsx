@@ -27,7 +27,7 @@ type Props = {
 	onClose: () => void;
 };
 
-const SOURCES = ['current', 'brandfetch', 'logodev', 'appstore', 'inhouse'] as const;
+const SOURCES = ['current', 'brandfetch', 'logodev', 'appstore', 'playstore', 'inhouse'] as const;
 type Source = (typeof SOURCES)[number];
 
 const SOURCE_LABELS: Record<Source, string> = {
@@ -35,6 +35,7 @@ const SOURCE_LABELS: Record<Source, string> = {
 	brandfetch: 'Brandfetch',
 	logodev: 'logo.dev',
 	appstore: 'App Store',
+	playstore: 'Google Play',
 	inhouse: 'Upload'
 };
 
@@ -105,7 +106,7 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 		[]
 	);
 
-	const fetchRemote = async (source: 'brandfetch' | 'logodev' | 'appstore') => {
+	const fetchRemote = async (source: 'brandfetch' | 'logodev' | 'appstore' | 'playstore') => {
 		if (loading.has(source)) return;
 		setLoading((p) => new Set(p).add(source));
 		try {
@@ -121,6 +122,17 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 				if (!app) throw new Error('Not found in App Store');
 				imageUrl = app.artworkUrl512 || app.artworkUrl100;
 				if (!imageUrl) throw new Error('No artwork available');
+			} else if (source === 'playstore') {
+				// No public JSON API — use our search endpoint to get Play Store results
+				const searchRes = await fetch(
+					`${API_URL}/search?q=${encodeURIComponent(searchQuery)}&sources=playstore`
+				);
+				if (!searchRes.ok) throw new Error(`Play Store: ${searchRes.status}`);
+				const results = await searchRes.json();
+				const app = results?.[0];
+				if (!app) throw new Error('Not found in Google Play');
+				imageUrl = app.logo_url;
+				if (!imageUrl) throw new Error('No icon available');
 			} else {
 				const res = await fetch(`${API_URL}/logos/fetch`, {
 					method: 'POST',
@@ -194,7 +206,7 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
 			<div
-				className={`bg-surface rounded-2xl border border-border shadow-2xl max-w-[95vw] min-h-[900px] max-h-[90vh] overflow-hidden flex flex-col ${view === 'logo' ? 'w-[900px]' : 'w-[1100px]'}`}
+				className={`bg-surface rounded-2xl border border-border shadow-2xl max-w-[95vw] min-h-[900px] max-h-[90vh] overflow-hidden flex flex-col ${view === 'logo' ? 'w-[1000px]' : 'w-[1100px]'}`}
 				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Header + Tabs */}
@@ -291,7 +303,7 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 						</div>
 
 						{/* Source cards */}
-						<div className="grid grid-cols-5 gap-2 px-6 py-4 border-t border-border">
+						<div className="grid grid-cols-6 gap-2 px-6 py-4 border-t border-border">
 							{SOURCES.map((src) => {
 								const entry = logos[src];
 								const isActive = active === src;
@@ -305,7 +317,7 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 										onClick={() => {
 											if (isInhouse && !entry) fileRef.current?.click();
 											else if (entry) setActive(src);
-											else if (src === 'brandfetch' || src === 'logodev' || src === 'appstore') fetchRemote(src);
+											else if (src === 'brandfetch' || src === 'logodev' || src === 'appstore' || src === 'playstore') fetchRemote(src);
 										}}
 										className={`group rounded-xl border-2 p-3 transition-all cursor-pointer ${
 											isActive

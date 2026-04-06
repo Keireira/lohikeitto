@@ -10,6 +10,7 @@ pub enum Source {
     Brandfetch,
     Logodev,
     AppStore,
+    PlayStore,
 }
 
 #[derive(Debug)]
@@ -37,19 +38,25 @@ impl SearchSources {
                 "appstore" => {
                     set.insert(Source::AppStore);
                 }
+                "playstore" => {
+                    set.insert(Source::PlayStore);
+                }
                 "mobile" => {
                     set.insert(Source::AppStore);
+                    set.insert(Source::PlayStore);
                 }
                 "external" => {
                     set.insert(Source::Brandfetch);
                     set.insert(Source::Logodev);
                     set.insert(Source::AppStore);
+                    set.insert(Source::PlayStore);
                 }
                 "all" => {
                     set.insert(Source::Inhouse);
                     set.insert(Source::Brandfetch);
                     set.insert(Source::Logodev);
                     set.insert(Source::AppStore);
+                    set.insert(Source::PlayStore);
                 }
                 other => return Err(format!("unknown source: {other}")),
             }
@@ -98,30 +105,30 @@ pub struct SearchResult {
     pub name: String,
     /// Service domains. Inhouse (curated) results may have multiple; external results always have one.
     pub domains: Vec<String>,
-    /// Result source: `inhouse`, `brandfetch`, `logo.dev`, or `appstore`
+    /// Result source: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, or `playstore`
     #[schema(example = "inhouse")]
     pub source: String,
-    /// Service description (appstore only)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(nullable)]
+    /// Service description — not included in search response, used internally for limbus
+    #[serde(skip_serializing)]
+    #[schema(ignore)]
     pub description: Option<String>,
-    /// Bundle ID (appstore only)
+    /// Bundle ID (appstore/playstore)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable)]
     pub bundle_id: Option<String>,
-    /// Seller / developer name (appstore only)
+    /// Seller / developer name (appstore/playstore)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable)]
     pub seller_name: Option<String>,
-    /// Seller website domain extracted from sellerUrl (appstore only)
+    /// Seller website domain extracted from sellerUrl (appstore/playstore)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable)]
     pub seller_domain: Option<String>,
-    /// Matched category slug (appstore only)
+    /// Matched category slug (appstore/playstore)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable)]
     pub category_slug: Option<String>,
-    /// Genre-derived tags (appstore only)
+    /// Genre-derived tags (appstore/playstore)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable)]
     pub tags: Option<Vec<String>>,
