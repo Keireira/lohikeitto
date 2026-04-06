@@ -6,9 +6,10 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Source {
-    Local,
+    Inhouse,
     Brandfetch,
     Logodev,
+    AppStore,
 }
 
 #[derive(Debug)]
@@ -24,8 +25,8 @@ impl SearchSources {
 
         for token in s.split(',').map(|t| t.trim()) {
             match token.to_lowercase().as_str() {
-                "local" => {
-                    set.insert(Source::Local);
+                "inhouse" => {
+                    set.insert(Source::Inhouse);
                 }
                 "brandfetch" => {
                     set.insert(Source::Brandfetch);
@@ -33,14 +34,22 @@ impl SearchSources {
                 "logodev" => {
                     set.insert(Source::Logodev);
                 }
+                "appstore" => {
+                    set.insert(Source::AppStore);
+                }
+                "mobile" => {
+                    set.insert(Source::AppStore);
+                }
                 "external" => {
                     set.insert(Source::Brandfetch);
                     set.insert(Source::Logodev);
+                    set.insert(Source::AppStore);
                 }
                 "all" => {
-                    set.insert(Source::Local);
+                    set.insert(Source::Inhouse);
                     set.insert(Source::Brandfetch);
                     set.insert(Source::Logodev);
+                    set.insert(Source::AppStore);
                 }
                 other => return Err(format!("unknown source: {other}")),
             }
@@ -76,10 +85,10 @@ pub struct SearchQuery {
     "logo_url": "https://s3.uha.app/logos/adguard.webp",
     "name": "AdGuard",
     "domains": ["adguard.com"],
-    "source": "local"
+    "source": "inhouse"
 }))]
 pub struct SearchResult {
-    /// For local results — UUID v4 from DB; for external — deterministic UUID v5 from first domain
+    /// For inhouse results — UUID v4 from DB; for external — deterministic UUID v5 from first domain
     pub id: Uuid,
     /// Logo image URL
     #[schema(example = "https://s3.uha.app/logos/adguard.webp")]
@@ -87,9 +96,9 @@ pub struct SearchResult {
     /// Service name
     #[schema(example = "AdGuard")]
     pub name: String,
-    /// Service domains. Local (curated) results may have multiple; external results always have one.
+    /// Service domains. Inhouse (curated) results may have multiple; external results always have one.
     pub domains: Vec<String>,
-    /// Result source: `local`, `brandfetch`, or `logo.dev`
-    #[schema(example = "local")]
+    /// Result source: `inhouse`, `brandfetch`, `logo.dev`, or `appstore`
+    #[schema(example = "inhouse")]
     pub source: String,
 }

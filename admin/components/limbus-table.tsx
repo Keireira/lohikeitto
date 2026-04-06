@@ -22,6 +22,7 @@ const SourceBadge = ({ source }: { source: string }) => {
 	const colors: Record<string, string> = {
 		brandfetch: 'bg-blue-500/10 text-blue-500',
 		'logo.dev': 'bg-purple-500/10 text-purple-500',
+		appstore: 'bg-sky-500/10 text-sky-500',
 		discovered: 'bg-amber-500/10 text-amber-500'
 	};
 	return (

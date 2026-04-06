@@ -80,7 +80,7 @@ fn limbus_to_response(row: LimbusRow) -> ServiceResponse {
     path = "/service/{lookup}",
     tag = "Services",
     summary = "Get a service by ID or domain",
-    description = "Look up a service by UUID or domain name. If not found locally, searches external sources (Brandfetch, logo.dev) and adds the result to the approval queue.",
+    description = "Look up a service by UUID or domain name. If not found locally, searches external sources (Brandfetch, logo.dev, App Store) and adds the result to the approval queue.",
     params(
         ("lookup" = String, Path, description = "Service UUID or domain name"),
     ),

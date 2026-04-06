@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::config::Config;
 
 use crate::dto::search::{SearchResult, SearchSources, Source};
+use crate::models::appstore::ITunesSearchResponse;
 use crate::models::brandfetch::BFSearchItem;
 use crate::models::logodev::LDSearchItem;
 use shared::models::service::ServiceRow;
@@ -19,9 +20,9 @@ pub async fn search(
     q: &str,
     sources: &SearchSources,
 ) -> Vec<SearchResult> {
-    let local_fut = async {
-        if sources.has(Source::Local) {
-            search_local(pool, &config.s3_base_url, q).await
+    let inhouse_fut = async {
+        if sources.has(Source::Inhouse) {
+            search_inhouse(pool, &config.s3_base_url, q).await
         } else {
             vec![]
         }
@@ -43,12 +44,20 @@ pub async fn search(
         }
     };
 
-    let (local, brandfetch, logodev) = tokio::join!(local_fut, bf_fut, ld_fut);
+    let as_fut = async {
+        if sources.has(Source::AppStore) {
+            search_appstore(http, q).await
+        } else {
+            vec![]
+        }
+    };
 
-    deduplicate(local, brandfetch, logodev)
+    let (inhouse, brandfetch, logodev, appstore) = tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut);
+
+    deduplicate(inhouse, brandfetch, logodev, appstore)
 }
 
-async fn search_local(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchResult> {
+async fn search_inhouse(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchResult> {
     let rows = sqlx::query_as::<sqlx::Postgres, ServiceRow>(
         r#"
         SELECT id, name, slug, domains
@@ -66,7 +75,7 @@ async fn search_local(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchRe
     .fetch_all(pool)
     .await
     .unwrap_or_else(|e| {
-        warn!(error = %e, "local search failed");
+        warn!(error = %e, "inhouse search failed");
         vec![]
     });
 
@@ -77,7 +86,7 @@ async fn search_local(pool: &PgPool, s3_base_url: &str, q: &str) -> Vec<SearchRe
             logo_url: format!("{}/logos/{}.webp", s3_base_url, r.slug),
             name: r.name,
             domains: r.domains,
-            source: "local".into(),
+            source: "inhouse".into(),
         })
         .collect()
 }
@@ -167,31 +176,75 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
         .collect()
 }
 
+async fn search_appstore(http: &Client, q: &str) -> Vec<SearchResult> {
+    let mut url = url::Url::parse("https://itunes.apple.com/search").unwrap();
+    url.query_pairs_mut()
+        .append_pair("term", q)
+        .append_pair("entity", "software")
+        .append_pair("limit", "10");
+
+    let resp: ITunesSearchResponse = match http.get(url.as_str()).send().await {
+        Ok(resp) if resp.status().is_success() => resp.json().await.unwrap_or_else(|e| {
+            warn!(error = %e, "failed to parse appstore response");
+            ITunesSearchResponse { results: vec![] }
+        }),
+        Ok(resp) => {
+            warn!(status = %resp.status(), "appstore returned error");
+            return vec![];
+        }
+        Err(e) => {
+            warn!(error = %e, "appstore request failed");
+            return vec![];
+        }
+    };
+
+    resp.results
+        .into_iter()
+        .filter(|app| !app.bundle_id.is_empty())
+        .map(|app| {
+            let logo_url = app
+                .artwork_url_512
+                .or(app.artwork_url_100)
+                .unwrap_or_default();
+
+            SearchResult {
+                id: Uuid::new_v5(&Uuid::NAMESPACE_URL, app.bundle_id.as_bytes()),
+                logo_url,
+                name: app.track_name,
+                domains: vec![app.bundle_id],
+                source: "appstore".into(),
+            }
+        })
+        .collect()
+}
+
 /// Search external sources by domain, return first match.
 pub async fn lookup_external(
     http: &Client,
     config: &Config,
     domain: &str,
 ) -> Option<SearchResult> {
-    let (bf, ld) = tokio::join!(
+    let (bf, ld, appstore) = tokio::join!(
         search_brandfetch(http, &config.brandfetch_client_id, domain),
         search_logodev(http, &config.logodev_pk, &config.logodev_sk, domain),
+        search_appstore(http, domain),
     );
 
-    bf.into_iter().chain(ld).next()
+    appstore.into_iter().chain(bf).chain(ld).next()
 }
 
 /// Deduplicate by domain. Local results may have multiple domains — each one
-/// blocks external duplicates. Priority: local > brandfetch > logo.dev.
+/// blocks external duplicates. Priority: inhouse > appstore > brandfetch > logo.dev.
 fn deduplicate(
-    local: Vec<SearchResult>,
+    inhouse: Vec<SearchResult>,
     brandfetch: Vec<SearchResult>,
     logodev: Vec<SearchResult>,
+    appstore: Vec<SearchResult>,
 ) -> Vec<SearchResult> {
     let mut seen: HashSet<String> = HashSet::new();
     let mut results: Vec<SearchResult> = Vec::new();
 
-    for group in [local, brandfetch, logodev] {
+    for group in [inhouse, appstore, brandfetch, logodev] {
         for item in group {
             // Local results claim all their domains at once
             let dominated = item.domains.iter().all(|d| seen.contains(d));

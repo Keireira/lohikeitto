@@ -445,7 +445,7 @@ const ServiceEditor = ({
 					</Label>
 				</Section>
 
-				{slug && domains.length > 0 && (
+				{slug && (
 					<Section title="Logo & Color">
 						<button
 							type="button"
@@ -778,16 +778,16 @@ const ServiceEditor = ({
 			)}
 
 			{/* Logo Studio */}
-			{logoStudioOpen && domains.length > 0 && (
+			{logoStudioOpen && (
 				<LogoStudio
-					domain={domains[0]}
+					defaultQuery={domains[0] || name || service.name}
 					slug={committedSlug || slug}
 					currentLogoUrl={proxiedLogo}
-					onSave={async (source, saveSlug) => {
+					onSave={async (source, saveSlug, logoUrl) => {
 						const res = await fetch(`${API_URL}/logos/save`, {
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ domain: domains[0], slug: saveSlug, source })
+							body: JSON.stringify({ domain: domains[0], slug: saveSlug, source, ...(logoUrl && { logo_url: logoUrl }) })
 						});
 						if (!res.ok) {
 							const err = await res.text();
