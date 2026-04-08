@@ -8,7 +8,7 @@ use crate::error::AdminError;
 pub struct FetchLogoRequest {
     pub domain: String,
     pub slug: String,
-    pub source: String, // "brandfetch", "logodev", "appstore", or "playstore"
+    pub source: String, // "brandfetch", "logo.dev", "appstore", or "playstore"
     pub logo_url: Option<String>,
 }
 
@@ -33,7 +33,7 @@ pub async fn fetch_logo(
                 req.domain, client_id
             )
         }
-        "logodev" => {
+        "logo.dev" => {
             let pk = state
                 .config
                 .logodev_pk
@@ -78,7 +78,7 @@ pub async fn save_logo(
                 req.domain, client_id
             )
         }
-        "logodev" => {
+        "logo.dev" => {
             let pk = state
                 .config
                 .logodev_pk

@@ -27,13 +27,13 @@ type Props = {
 	onClose: () => void;
 };
 
-const SOURCES = ['current', 'brandfetch', 'logodev', 'appstore', 'playstore', 'web', 'inhouse'] as const;
+const SOURCES = ['current', 'brandfetch', 'logo.dev', 'appstore', 'playstore', 'web', 'inhouse'] as const;
 type Source = (typeof SOURCES)[number];
 
 const SOURCE_LABELS: Record<Source, string> = {
 	current: 'Current',
 	brandfetch: 'Brandfetch',
-	logodev: 'logo.dev',
+	'logo.dev': 'logo.dev',
 	appstore: 'App Store',
 	playstore: 'Google Play',
 	web: 'Web',
@@ -107,7 +107,7 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 		[]
 	);
 
-	const fetchRemote = async (source: 'brandfetch' | 'logodev' | 'appstore' | 'playstore' | 'web') => {
+	const fetchRemote = async (source: 'brandfetch' | 'logo.dev' | 'appstore' | 'playstore' | 'web') => {
 		if (loading.has(source)) return;
 		setLoading((p) => new Set(p).add(source));
 		try {
@@ -125,9 +125,7 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 				if (!imageUrl) throw new Error('No artwork available');
 			} else if (source === 'playstore' || source === 'web') {
 				// Use our search endpoint
-				const searchRes = await fetch(
-					`${API_URL}/search?q=${encodeURIComponent(searchQuery)}&sources=${source}`
-				);
+				const searchRes = await fetch(`${API_URL}/search?q=${encodeURIComponent(searchQuery)}&sources=${source}`);
 				if (!searchRes.ok) throw new Error(`${source}: ${searchRes.status}`);
 				const results = await searchRes.json();
 				const item = results?.[0];
@@ -318,7 +316,14 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 										onClick={() => {
 											if (isInhouse && !entry) fileRef.current?.click();
 											else if (entry) setActive(src);
-											else if (src === 'brandfetch' || src === 'logodev' || src === 'appstore' || src === 'playstore' || src === 'web') fetchRemote(src);
+											else if (
+												src === 'brandfetch' ||
+												src === 'logo.dev' ||
+												src === 'appstore' ||
+												src === 'playstore' ||
+												src === 'web'
+											)
+												fetchRemote(src);
 										}}
 										className={`group rounded-xl border-2 p-3 transition-all cursor-pointer ${
 											isActive

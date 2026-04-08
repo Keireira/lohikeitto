@@ -33,7 +33,7 @@ impl SearchSources {
                 "brandfetch" => {
                     set.insert(Source::Brandfetch);
                 }
-                "logodev" => {
+                "logo.dev" => {
                     set.insert(Source::Logodev);
                 }
                 "appstore" => {

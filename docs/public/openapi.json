@@ -21,9 +21,7 @@
   "paths": {
     "/health": {
       "get": {
-        "tags": [
-          "System"
-        ],
+        "tags": ["System"],
         "summary": "Health check",
         "description": "Returns the service status and database connectivity. Used by orchestrators (Docker, k8s) for liveness probes.",
         "operationId": "health_check",
@@ -53,9 +51,7 @@
     },
     "/search": {
       "get": {
-        "tags": [
-          "Search"
-        ],
+        "tags": ["Search"],
         "summary": "Search services",
         "description": "Search for services across inhouse database and external sources (Brandfetch, logo.dev, App Store, Google Play, Web). Results are deduplicated by domain (www. stripped) with priority: inhouse > appstore > playstore > web > brandfetch > logo.dev.",
         "operationId": "search",
@@ -72,7 +68,7 @@
           {
             "name": "sources",
             "in": "query",
-            "description": "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`, `playstore`, `web`. Aliases: `external` (all external), `mobile` (appstore + playstore), `all` (default)",
+            "description": "Comma-separated sources: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, `playstore`, `web`. Aliases: `external` (all external), `mobile` (appstore + playstore), `all` (default)",
             "required": true,
             "schema": {
               "type": "string"
@@ -119,9 +115,7 @@
                 },
                 "example": [
                   {
-                    "domains": [
-                      "adguard.com"
-                    ],
+                    "domains": ["adguard.com"],
                     "id": "550e8400-e29b-41d4-a716-446655440000",
                     "logo_url": "https://s3.uha.app/logos/adguard.webp",
                     "name": "AdGuard",
@@ -146,9 +140,7 @@
     },
     "/service/{lookup}": {
       "get": {
-        "tags": [
-          "Services"
-        ],
+        "tags": ["Services"],
         "summary": "Get a service by ID or domain",
         "description": "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources and adds the result to the approval queue. Without `source_hint`, only brandfetch + logo.dev are searched. Use `source_hint` for App Store (`appstore`), Google Play (`playstore`), or direct web scraping (`web`).",
         "operationId": "get",
@@ -219,11 +211,7 @@
     "schemas": {
       "ErrorResponse": {
         "type": "object",
-        "required": [
-          "status",
-          "code",
-          "message"
-        ],
+        "required": ["status", "code", "message"],
         "properties": {
           "code": {
             "type": "integer",
@@ -251,11 +239,7 @@
       },
       "HealthResponse": {
         "type": "object",
-        "required": [
-          "status",
-          "message",
-          "db"
-        ],
+        "required": ["status", "message", "db"],
         "properties": {
           "db": {
             "type": "boolean",
@@ -280,26 +264,14 @@
       },
       "SearchResult": {
         "type": "object",
-        "required": [
-          "id",
-          "logo_url",
-          "name",
-          "domains",
-          "source"
-        ],
+        "required": ["id", "logo_url", "name", "domains", "source"],
         "properties": {
           "bundle_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Bundle ID (appstore/playstore)"
           },
           "category_slug": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Matched category slug (appstore/playstore)"
           },
           "domains": {
@@ -331,9 +303,7 @@
           }
         },
         "example": {
-          "domains": [
-            "adguard.com"
-          ],
+          "domains": ["adguard.com"],
           "id": "550e8400-e29b-41d4-a716-446655440000",
           "logo_url": "https://s3.uha.app/logos/adguard.webp",
           "name": "AdGuard",
@@ -362,16 +332,10 @@
             }
           },
           "bundle_id": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "category_slug": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "colors": {},
           "domains": {
@@ -391,10 +355,7 @@
             "type": "string"
           },
           "ref_link": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "slug": {
             "type": "string"
@@ -415,9 +376,7 @@
           "colors": {
             "primary": "#000000"
           },
-          "domains": [
-            "adguard.com"
-          ],
+          "domains": ["adguard.com"],
           "id": "550e8400-e29b-41d4-a716-446655440000",
           "logo_url": "https://s3.uha.app/logos/adguard.webp",
           "name": "AdGuard",

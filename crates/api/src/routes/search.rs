@@ -17,7 +17,7 @@ use crate::services::search as search_service;
     description = "Search for services across inhouse database and external sources (Brandfetch, logo.dev, App Store, Google Play, Web). Results are deduplicated by domain (www. stripped) with priority: inhouse > appstore > playstore > web > brandfetch > logo.dev.",
     params(
         ("q" = String, Query, description = "Search string (required, non-empty)"),
-        ("sources" = String, Query, description = "Comma-separated sources: `inhouse`, `brandfetch`, `logodev`, `appstore`, `playstore`, `web`. Aliases: `external` (all external), `mobile` (appstore + playstore), `all` (default)"),
+        ("sources" = String, Query, description = "Comma-separated sources: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, `playstore`, `web`. Aliases: `external` (all external), `mobile` (appstore + playstore), `all` (default)"),
         ("app_store_country" = Option<String>, Query, description = "App Store country code (default: US)"),
         ("playstore_country" = Option<String>, Query, description = "Play Store country code (default: US)"),
         ("language" = Option<String>, Query, description = "Language code for store results (default: en)"),
