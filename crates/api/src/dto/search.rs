@@ -46,13 +46,13 @@ impl SearchSources {
                     set.insert(Source::Web);
                 }
                 "mobile" => {
-                    set.insert(Source::AppStore);
+                    // set.insert(Source::AppStore);
                     set.insert(Source::PlayStore);
                 }
                 "external" => {
                     set.insert(Source::Brandfetch);
                     set.insert(Source::Logodev);
-                    set.insert(Source::AppStore);
+                    // set.insert(Source::AppStore);
                     set.insert(Source::PlayStore);
                     set.insert(Source::Web);
                 }
@@ -60,7 +60,7 @@ impl SearchSources {
                     set.insert(Source::Inhouse);
                     set.insert(Source::Brandfetch);
                     set.insert(Source::Logodev);
-                    set.insert(Source::AppStore);
+                    // set.insert(Source::AppStore);
                     set.insert(Source::PlayStore);
                     set.insert(Source::Web);
                 }
