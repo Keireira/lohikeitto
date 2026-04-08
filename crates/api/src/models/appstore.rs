@@ -5,6 +5,10 @@ pub struct ITunesSearchResponse {
     pub results: Vec<ITunesApp>,
 }
 
+// 6021: 'Magazines & Newspapers';
+// 6022: 'Catalogs';
+// 6025: 'Stickers';
+
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct ITunesApp {
@@ -21,54 +25,47 @@ pub struct ITunesApp {
     #[serde(rename = "sellerUrl")]
     pub seller_url: Option<String>,
     pub description: Option<String>,
-    pub genres: Option<Vec<String>>,
-    #[serde(rename = "averageUserRating")]
-    pub average_user_rating: Option<f64>,
-    #[serde(rename = "userRatingCount")]
-    pub user_rating_count: Option<u64>,
+    #[serde(rename = "genreIds")]
+    pub genre_ids: Option<Vec<String>>,
 }
 
-// TODO: migrate local categories to Apple-like genre system entirely.
-// Current mapping is a bridge — Apple genres are canonical, local slugs are legacy.
 /// Map Apple App Store genre to local category slug.
-pub fn map_genre_to_category(genre: &str) -> Option<&'static str> {
-    match genre {
+pub fn map_genre_to_category(genre_ids: &i32) -> Option<&'static str> {
+    match genre_ids {
         // Direct matches
-        "Education" => Some("education"),
-        "Shopping" => Some("shopping_and_memberships"),
-        "Social Networking" => Some("social"),
-        "Productivity" => Some("productivity"),
-        "Travel" => Some("travel_and_flights"),
-        "Navigation" => Some("transportation"),
-        "Health & Fitness" => Some("health_and_fitness"),
-        "Finance" => Some("finances_and_insurance"),
-        "Food & Drink" => Some("food_and_delivery"),
-        "Games" => Some("gaming"),
-        "Music" => Some("music_and_audiobooks"),
-        "News" => Some("news_and_reading"),
-        "Books" => Some("news_and_reading"),
-        "Entertainment" => Some("video_streaming"),
-        "Photo & Video" => Some("design_and_creative"),
-        "Graphics & Design" => Some("design_and_creative"),
-        "Developer Tools" => Some("developer_tools"),
-        "Utilities" => Some("utilities_and_bills"),
-        "Weather" => Some("utilities_and_bills"),
-        "Lifestyle" => Some("beauty_care"),
-        "Sports" => Some("health_and_fitness"),
-        "Business" => Some("productivity"),
-        "Reference" => Some("education"),
-        "Medical" => Some("health_and_fitness"),
+        6000 => Some("productivity"),
+        6017 => Some("education"),
+        6024 => Some("shopping_and_memberships"),
+        6005 => Some("social"),
+        6007 => Some("productivity"),
+        6003 => Some("travel_and_flights"),
+        6010 => Some("transportation"),
+        6013 => Some("health_and_fitness"),
+        6015 => Some("finances_and_insurance"),
+        6023 => Some("food_and_delivery"),
+        6014 => Some("gaming"),
+        6011 => Some("music_and_audiobooks"),
+        6009 => Some("news_and_reading"),
+        6018 => Some("news_and_reading"),
+        6016 => Some("video_streaming"),
+        6008 => Some("design_and_creative"),
+        6027 => Some("design_and_creative"),
+        6026 => Some("developer_tools"),
+        6002 => Some("utilities_and_bills"),
+        6001 => Some("utilities_and_bills"),
+        6012 => Some("beauty_care"),
+        6004 => Some("health_and_fitness"),
+        6006 => Some("education"),
+        6020 => Some("health_and_fitness"),
         _ => None,
     }
 }
 
 /// Map all Apple genres to (category_slug, tags).
 /// First matched genre becomes category, all genres become tags.
-pub fn map_genres(genres: &[String]) -> (Option<&'static str>, Vec<String>) {
-    let category = genres.iter().find_map(|g| map_genre_to_category(g));
-    let tags: Vec<String> = genres
+pub fn map_genres(genre_ids: &[String]) -> Option<&'static str> {
+    genre_ids
         .iter()
-        .map(|g| g.to_lowercase().replace(' ', "-").replace('&', "and"))
-        .collect();
-    (category, tags)
+        .filter_map(|g| g.parse::<i32>().ok())
+        .find_map(|g| map_genre_to_category(&g))
 }

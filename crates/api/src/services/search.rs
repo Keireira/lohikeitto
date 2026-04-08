@@ -246,10 +246,7 @@ async fn search_logodev(http: &Client, pk: &str, sk: &str, q: &str) -> Vec<Searc
 }
 
 async fn search_appstore(http: &Client, q: &str, country: &str) -> Vec<SearchResult> {
-    let base = format!(
-        "https://itunes.apple.com/{}/search",
-        country.to_lowercase()
-    );
+    let base = format!("https://itunes.apple.com/{}/search", country.to_lowercase());
     let mut url = url::Url::parse(&base).unwrap();
     url.query_pairs_mut()
         .append_pair("term", q)
@@ -280,10 +277,7 @@ async fn search_appstore(http: &Client, q: &str, country: &str) -> Vec<SearchRes
 
 /// Exact lookup by bundle ID via iTunes Lookup API.
 async fn lookup_appstore(http: &Client, bundle_id: &str, country: &str) -> Option<SearchResult> {
-    let base = format!(
-        "https://itunes.apple.com/{}/lookup",
-        country.to_lowercase()
-    );
+    let base = format!("https://itunes.apple.com/{}/lookup", country.to_lowercase());
     let mut url = url::Url::parse(&base).unwrap();
     url.query_pairs_mut().append_pair("bundleId", bundle_id);
 
@@ -301,11 +295,11 @@ fn itunes_app_to_result(app: appstore::ITunesApp) -> SearchResult {
         .or(app.artwork_url_100)
         .unwrap_or_default();
 
-    let (category_slug, tags) = app
-        .genres
+    let category_slug = app
+        .genre_ids
         .as_deref()
         .map(appstore::map_genres)
-        .unwrap_or((None, vec![]));
+        .unwrap_or(None);
 
     let mut domains = Vec::with_capacity(2);
     if let Some(sd) = app.seller_url.as_deref().and_then(|u| {
@@ -326,7 +320,7 @@ fn itunes_app_to_result(app: appstore::ITunesApp) -> SearchResult {
         description: app.description,
         bundle_id: Some(app.bundle_id),
         category_slug: category_slug.map(Into::into),
-        tags: if tags.is_empty() { None } else { Some(tags) },
+        tags: { None },
     }
 }
 
