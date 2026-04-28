@@ -4,7 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "tls-rustls", "macros", "derive", "uuid"] }
+sqlx = { version = "0.8", default-features = false, features = [
+	"runtime-tokio",
+	"postgres",
+	"tls-rustls",
+	"macros",
+	"derive",
+	"uuid",
+] }
 tokio = { version = "1", features = ["time", "signal"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
