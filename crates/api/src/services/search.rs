@@ -21,6 +21,7 @@ use shared::models::service::ServiceRow;
 const PLAYSTORE_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 \
      (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
+#[allow(clippy::too_many_arguments)]
 pub async fn search(
     pool: &PgPool,
     http: &Client,

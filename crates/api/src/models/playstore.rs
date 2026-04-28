@@ -23,10 +23,8 @@ fn extract_meta(html: &str, property: &str) -> Option<String> {
             .iter()
             .any(|(key, value)| (key == "property" || key == "name") && value == property);
 
-        if matches {
-            if let Some((_, content)) = attrs.into_iter().find(|(key, _)| key == "content") {
-                return Some(content);
-            }
+        if matches && let Some((_, content)) = attrs.into_iter().find(|(key, _)| key == "content") {
+            return Some(content);
         }
 
         pos = tag_end + 1;
@@ -493,12 +491,13 @@ fn url_decode(value: &str) -> String {
     let mut pos = 0;
 
     while pos < bytes.len() {
-        if bytes[pos] == b'%' && pos + 2 < bytes.len() {
-            if let Ok(hex) = u8::from_str_radix(&value[pos + 1..pos + 3], 16) {
-                decoded.push(hex as char);
-                pos += 3;
-                continue;
-            }
+        if bytes[pos] == b'%'
+            && pos + 2 < bytes.len()
+            && let Ok(hex) = u8::from_str_radix(&value[pos + 1..pos + 3], 16)
+        {
+            decoded.push(hex as char);
+            pos += 3;
+            continue;
         }
 
         decoded.push(bytes[pos] as char);
@@ -560,8 +559,7 @@ pub fn map_category(category: &str) -> Option<&'static str> {
         .trim()
         .to_ascii_lowercase()
         .replace('&', "and")
-        .replace(';', " ")
-        .replace('_', " ")
+        .replace([';', '_'], " ")
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");

@@ -139,7 +139,11 @@ pub async fn approve(
 
     // Use request overrides, fall back to limbus metadata from appstore
     let category = req.category_slug.or(limbus.category_slug);
-    let tags = if limbus.tags.is_empty() { vec![] } else { limbus.tags };
+    let tags = if limbus.tags.is_empty() {
+        vec![]
+    } else {
+        limbus.tags
+    };
 
     // Insert into services
     sqlx::query(

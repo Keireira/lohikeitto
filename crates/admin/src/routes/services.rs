@@ -138,7 +138,11 @@ pub async fn create(
 ) -> Result<Json<ServiceItem>, AdminError> {
     let alt_names = req.alternative_names.as_deref().unwrap_or(&[]);
     let tags = req.tags.as_deref().unwrap_or(&[]);
-    let social_links = req.social_links.as_ref().cloned().unwrap_or(serde_json::json!({}));
+    let social_links = req
+        .social_links
+        .as_ref()
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
     let id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO services (name, slug, bundle_id, description, domains, alternative_names, tags, verified, category_slug, colors, social_links, ref_link)

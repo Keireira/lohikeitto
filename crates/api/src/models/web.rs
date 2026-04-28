@@ -50,12 +50,11 @@ fn extract_meta(html: &str, property: &str) -> Option<String> {
             .iter()
             .any(|(key, value)| (key == "property" || key == "name") && value == property);
 
-        if matches {
-            if let Some((_, content)) = attrs.into_iter().find(|(key, _)| key == "content")
-                && !content.is_empty()
-            {
-                return Some(content);
-            }
+        if matches
+            && let Some((_, content)) = attrs.into_iter().find(|(key, _)| key == "content")
+            && !content.is_empty()
+        {
+            return Some(content);
         }
 
         pos = tag_end + 1;
@@ -189,9 +188,7 @@ fn sanitize_logo_url(base: &url::Url, url_str: &str) -> Option<String> {
         return None;
     }
 
-    if parsed.host_str().is_none() {
-        return None;
-    }
+    parsed.host_str()?;
 
     Some(parsed.to_string())
 }
