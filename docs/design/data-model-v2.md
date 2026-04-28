@@ -3,7 +3,7 @@
 ## Scope
 
 Redesign the data layer to support:
-- Company → service hierarchy
+- Company -> service hierarchy
 - Git-like revision history for service data and logos
 - Extended service metadata (socials, description, banner, colors palette)
 
@@ -31,7 +31,7 @@ CREATE TABLE organizations (
 **Key points:**
 - Org is NOT a service. It has no category, platforms, or service-level flags.
 - Branding of the org itself (logo, colors) lives on the `com.adobe.root` service.
-- Standalone services (no parent company) → `org_id = NULL`.
+- Standalone services (no parent company) -> `org_id = NULL`.
 - `bundle_id` always uses the `com.{brand}` prefix regardless of actual domain TLD (`com.figma`, not `io.figma`).
 - `slug` is human-readable, used in URLs and file paths.
 
@@ -104,11 +104,11 @@ Every change to a service creates a new **revision** containing only the **chang
 
 ```
 Service "lightroom"
-  head_id ──→ rev 5  changes: {discontinued: true, archived: true}
-                 └─ parent → rev 4  changes: {colors: [...]}          "rebrand"
-                                └─ parent → rev 3  changes: {logo_path: "logos/lightroom/v3.webp"}
-                                               └─ parent → rev 2  changes: {description: "Photo editor by Adobe"}
-                                                              └─ parent → rev 1  changes: {name: "Lightroom", slug: "lightroom", ...} (initial — full state)
+  head_id ──-> rev 5  changes: {discontinued: true, archived: true}
+                 └─ parent -> rev 4  changes: {colors: [...]}          "rebrand"
+                                └─ parent -> rev 3  changes: {logo_path: "logos/lightroom/v3.webp"}
+                                               └─ parent -> rev 2  changes: {description: "Photo editor by Adobe"}
+                                                              └─ parent -> rev 1  changes: {name: "Lightroom", slug: "lightroom", ...} (initial — full state)
 ```
 
 ### Schema
@@ -143,13 +143,13 @@ CREATE INDEX idx_revisions_parent ON service_revisions(parent_id);
 
 ### How it works
 
-**Creating a service** → revision 1 is created with the full initial state in `changes`. The same data is written to the materialized fields on `services`.
+**Creating a service** -> revision 1 is created with the full initial state in `changes`. The same data is written to the materialized fields on `services`.
 
-**Updating a service** → new revision is created with only the changed fields in `changes`. The corresponding fields on `services` are updated (merged).
+**Updating a service** -> new revision is created with only the changed fields in `changes`. The corresponding fields on `services` are updated (merged).
 
-**Reading current state** → just `SELECT * FROM services`. No joins, no reconstruction. The materialized state is always up to date.
+**Reading current state** -> just `SELECT * FROM services`. No joins, no reconstruction. The materialized state is always up to date.
 
-**Reading a specific historical revision** → fold `changes` from rev 1 through rev N:
+**Reading a specific historical revision** -> fold `changes` from rev 1 through rev N:
 ```sql
 SELECT changes FROM service_revisions
 WHERE service_id = :id AND revision <= :target_rev
@@ -157,13 +157,13 @@ ORDER BY revision ASC;
 ```
 Then merge the JSONB objects sequentially: `rev1 || rev2 || ... || revN`. Each subsequent changeset overrides the keys it touches.
 
-**Viewing what changed in a revision** → just read `changes` directly. It IS the diff.
+**Viewing what changed in a revision** -> just read `changes` directly. It IS the diff.
 
-**Diffing two arbitrary revisions** → reconstruct state at rev A and rev B, compare.
+**Diffing two arbitrary revisions** -> reconstruct state at rev A and rev B, compare.
 
-**Reverting to revision N** → reconstruct state at N, compute the diff against current HEAD, create a new revision with that diff. History only grows forward.
+**Reverting to revision N** -> reconstruct state at N, compute the diff against current HEAD, create a new revision with that diff. History only grows forward.
 
-**Squashing (reset root)** → pick any revision N as the new root. Reconstruct full state at N, replace its `changes` with the full state snapshot, set `parent_id = NULL`. Delete all revisions before N. Revision N becomes the new initial commit. Like `git replace --graft` + `gc`.
+**Squashing (reset root)** -> pick any revision N as the new root. Reconstruct full state at N, replace its `changes` with the full state snapshot, set `parent_id = NULL`. Delete all revisions before N. Revision N becomes the new initial commit. Like `git replace --graft` + `gc`.
 
 ### Design decisions
 
@@ -335,14 +335,14 @@ CREATE INDEX idx_revisions_parent ON service_revisions(parent_id);
 ### Admin endpoints
 
 ```
-POST   /services                              → create service + initial revision
-PUT    /services/:id                          → create new revision (partial update — merge with HEAD)
-DELETE /services/:id                          → hard delete (service + all revisions)
-GET    /services/:id/revisions                → list all revisions (paginated, newest first)
-GET    /services/:id/revisions/:revision      → get specific revision (reconstructed full state)
-POST   /services/:id/revisions/:revision/revert → create new revision from old snapshot
-POST   /services/:id/revisions/:revision/squash → make this revision the new root, delete all prior
-GET    /services/:id/diff?from=3&to=5         → diff between two revisions
+POST   /services                              -> create service + initial revision
+PUT    /services/:id                          -> create new revision (partial update — merge with HEAD)
+DELETE /services/:id                          -> hard delete (service + all revisions)
+GET    /services/:id/revisions                -> list all revisions (paginated, newest first)
+GET    /services/:id/revisions/:revision      -> get specific revision (reconstructed full state)
+POST   /services/:id/revisions/:revision/revert -> create new revision from old snapshot
+POST   /services/:id/revisions/:revision/squash -> make this revision the new root, delete all prior
+GET    /services/:id/diff?from=3&to=5         -> diff between two revisions
 ```
 
 ### Public API (search)

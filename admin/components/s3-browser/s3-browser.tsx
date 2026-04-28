@@ -48,7 +48,7 @@ const S3Browser = ({ data: initialData, services }: { data: S3ObjectT[]; service
 
 	const currentPath = path.length > 0 ? `${path.join('/')}/` : '';
 
-	// Sync path → URL
+	// Sync path -> URL
 	useEffect(() => {
 		const params = new URLSearchParams();
 		if (path.length > 0) params.set('path', path.join('/'));

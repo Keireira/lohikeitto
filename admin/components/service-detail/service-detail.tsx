@@ -787,7 +787,12 @@ const ServiceEditor = ({
 						const res = await fetch(`${API_URL}/logos/save`, {
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ domain: domains[0], slug: saveSlug, source, ...(logoUrl && { logo_url: logoUrl }) })
+							body: JSON.stringify({
+								domain: domains[0],
+								slug: saveSlug,
+								source,
+								...(logoUrl && { logo_url: logoUrl })
+							})
 						});
 						if (!res.ok) {
 							const err = await res.text();
@@ -796,7 +801,7 @@ const ServiceEditor = ({
 						toast.success(`Logo saved to logos/${saveSlug}.webp`);
 						setSlug(saveSlug);
 						setCommittedSlug(saveSlug);
-						// Bust cache → re-fetch for all components
+						// Bust cache -> re-fetch for all components
 						bustLogoCache(saveSlug);
 						const res2 = await fetch(logoApiUrl(saveSlug), { cache: 'no-store' });
 						if (res2.ok) {

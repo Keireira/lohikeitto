@@ -76,11 +76,11 @@ When 3+ sources return data, each external source is capped at **5 results** to 
 | **inhouse** | PostgreSQL (pg_trgm) | Name, slug, domain, alternative names, bundle ID | UUID, slug, domain | No |
 | **appstore** | iTunes Search API (JSON) | Keyword search | Exact by `bundleId` | No |
 | **playstore** | Google Play (HTML parsing) | Search page parsing | Details page meta tags | No |
-| **web** | Direct HTTP fetch | Domain-only (requires `.` in query) | OG/Twitter Card/favicon | No |
+| **web** | Direct HTTP fetch | Domain-only (requires `.` in query) | Site icons, then OG/Twitter fallback | No |
 | **brandfetch** | Brandfetch API (JSON) | Keyword search | Via search | `BRANDFETCH_CLIENT_ID` |
 | **logo.dev** | logo.dev API (JSON) | Keyword search | Via search | `LOGODEV_PK`, `LOGODEV_SK` |
 
-**Web source** fetches `https://{domain}` and extracts logos with priority: `og:image` → `twitter:image` → `apple-touch-icon` → `<link rel="icon">` → `/favicon.ico`. The site name is taken from `og:site_name` / `og:title` / `<title>`.
+**Web source** fetches `https://{domain}` and extracts logos with priority: verified `/favicon.png` -> `apple-touch-icon` -> `<link rel="icon">` -> `og:image` / `twitter:image` -> `/favicon.ico`. The site name is taken from `og:site_name` / `og:title` / `<title>`.
 
 **App Store** metadata includes `bundle_id`, `category_slug` (Apple genres mapped to local categories), and `tags`.
 

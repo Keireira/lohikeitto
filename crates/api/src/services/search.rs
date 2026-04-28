@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use reqwest::Client;
+use reqwest::{
+    Client,
+    header::{ACCEPT, CONTENT_TYPE, RANGE, USER_AGENT},
+};
 use sqlx::PgPool;
 use tracing::warn;
 use uuid::Uuid;
@@ -14,6 +17,9 @@ use crate::models::logodev::LDSearchItem;
 use crate::models::playstore;
 use crate::models::web;
 use shared::models::service::ServiceRow;
+
+const PLAYSTORE_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 \
+     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 pub async fn search(
     pool: &PgPool,
@@ -330,21 +336,22 @@ async fn search_playstore(
     country: &str,
     language: &str,
 ) -> Vec<SearchResult> {
-    let url = format!(
-        "https://play.google.com/store/search?q={}&c=apps&hl={}&gl={}",
-        url::form_urlencoded::byte_serialize(q.as_bytes()).collect::<String>(),
-        language,
-        country,
-    );
-
-    let accept_lang = if language == "en" {
-        "en".to_string()
-    } else {
-        format!("{language},en;q=0.5")
+    let language = normalize_language_tag(language);
+    let mut url = match url::Url::parse("https://play.google.com/store/search") {
+        Ok(url) => url,
+        Err(_) => return vec![],
     };
+    url.query_pairs_mut()
+        .append_pair("q", q)
+        .append_pair("c", "apps")
+        .append_pair("hl", &language)
+        .append_pair("gl", &normalize_country_code(country));
+
+    let accept_lang = playstore_accept_language(&language);
     let html = match http
-        .get(&url)
+        .get(url.as_str())
         .header("Accept-Language", &accept_lang)
+        .header(USER_AGENT, PLAYSTORE_USER_AGENT)
         .send()
         .await
     {
@@ -359,10 +366,64 @@ async fn search_playstore(
         }
     };
 
-    playstore::parse_search_page(&html)
-        .into_iter()
-        .map(playstore_app_to_result)
-        .collect()
+    let fallback_apps = playstore::parse_search_page(&html);
+    let package_names = playstore::parse_search_package_names(&html);
+
+    let mut results = Vec::new();
+    for package_name in package_names {
+        let fallback = fallback_apps
+            .iter()
+            .find(|app| app.package_name == package_name)
+            .cloned();
+
+        let app = fetch_playstore_details_app(http, &package_name, country, &language)
+            .await
+            .or(fallback);
+
+        if let Some(app) = app {
+            results.push(playstore_app_to_result(app));
+        }
+    }
+
+    results
+}
+
+fn normalize_language_tag(language: &str) -> String {
+    let language = language.trim();
+    if language.is_empty() {
+        "en".to_string()
+    } else {
+        language
+            .replace('_', "-")
+            .chars()
+            .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-')
+            .take(16)
+            .collect()
+    }
+}
+
+fn normalize_country_code(country: &str) -> String {
+    let country = country
+        .trim()
+        .chars()
+        .filter(|ch| ch.is_ascii_alphabetic())
+        .take(2)
+        .collect::<String>()
+        .to_ascii_uppercase();
+
+    if country.len() == 2 {
+        country
+    } else {
+        "US".to_string()
+    }
+}
+
+fn playstore_accept_language(language: &str) -> String {
+    if language == "en" {
+        "en".to_string()
+    } else {
+        format!("{language},en;q=0.5")
+    }
 }
 
 /// Exact lookup by package name via Google Play details page.
@@ -372,19 +433,33 @@ async fn lookup_playstore(
     country: &str,
     language: &str,
 ) -> Option<SearchResult> {
-    let url = format!(
-        "https://play.google.com/store/apps/details?id={}&hl={}&gl={}",
-        package_name, language, country,
-    );
+    let language = normalize_language_tag(language);
+    fetch_playstore_details_app(http, package_name, country, &language)
+        .await
+        .map(playstore_app_to_result)
+}
 
-    let accept_lang = if language == "en" {
-        "en".to_string()
-    } else {
-        format!("{language},en;q=0.5")
-    };
+async fn fetch_playstore_details_app(
+    http: &Client,
+    package_name: &str,
+    country: &str,
+    language: &str,
+) -> Option<playstore::PlayStoreApp> {
+    if !playstore::is_valid_package_name(package_name) {
+        return None;
+    }
+
+    let mut url = url::Url::parse("https://play.google.com/store/apps/details").ok()?;
+    url.query_pairs_mut()
+        .append_pair("id", package_name)
+        .append_pair("hl", language)
+        .append_pair("gl", &normalize_country_code(country));
+
+    let accept_lang = playstore_accept_language(language);
     let html = match http
-        .get(&url)
+        .get(url.as_str())
         .header("Accept-Language", &accept_lang)
+        .header(USER_AGENT, PLAYSTORE_USER_AGENT)
         .send()
         .await
     {
@@ -392,17 +467,11 @@ async fn lookup_playstore(
         _ => return None,
     };
 
-    playstore::parse_details_page(&html, package_name).map(playstore_app_to_result)
+    playstore::parse_details_page(&html, package_name)
 }
 
 fn playstore_app_to_result(app: playstore::PlayStoreApp) -> SearchResult {
     let category_slug = app.category.as_deref().and_then(playstore::map_category);
-
-    let tags: Vec<String> = app
-        .category
-        .iter()
-        .map(|c| c.to_lowercase().replace(' ', "-").replace('&', "and"))
-        .collect();
 
     SearchResult {
         id: Uuid::new_v5(&Uuid::NAMESPACE_URL, app.package_name.as_bytes()),
@@ -413,7 +482,7 @@ fn playstore_app_to_result(app: playstore::PlayStoreApp) -> SearchResult {
         description: app.description,
         bundle_id: Some(app.package_name),
         category_slug: category_slug.map(Into::into),
-        tags: if tags.is_empty() { None } else { Some(tags) },
+        tags: None,
     }
 }
 
@@ -429,8 +498,9 @@ async fn search_web(http: &Client, q: &str) -> Vec<SearchResult> {
     }
 }
 
-/// Fetch a domain and extract logo from OG/Twitter Card/favicon.
+/// Fetch a domain and extract logo from site icons, metadata, or common favicon paths.
 async fn lookup_web(http: &Client, domain: &str) -> Option<SearchResult> {
+    let domain = normalize_web_domain(domain)?;
     let url_str = format!("https://{domain}");
     let base_url = url::Url::parse(&url_str).ok()?;
 
@@ -450,6 +520,10 @@ async fn lookup_web(http: &Client, domain: &str) -> Option<SearchResult> {
         return None;
     }
 
+    let logo_url = lookup_favicon_png(http, &base_url)
+        .await
+        .unwrap_or(parsed.logo_url);
+
     let name = if parsed.name.is_empty() {
         domain.to_string()
     } else {
@@ -458,15 +532,84 @@ async fn lookup_web(http: &Client, domain: &str) -> Option<SearchResult> {
 
     Some(SearchResult {
         id: Uuid::new_v5(&Uuid::NAMESPACE_URL, domain.as_bytes()),
-        logo_url: parsed.logo_url,
+        logo_url,
         name,
-        domains: vec![domain.to_string()],
+        domains: vec![domain],
         source: "web".into(),
         description: None,
         bundle_id: None,
         category_slug: None,
         tags: None,
     })
+}
+
+fn normalize_web_domain(domain: &str) -> Option<String> {
+    let domain = domain.trim().trim_end_matches('.').to_ascii_lowercase();
+
+    if domain.is_empty()
+        || domain.len() > 253
+        || domain.contains('/')
+        || domain.contains('@')
+        || domain.contains(':')
+        || domain.contains('\\')
+        || domain.contains(char::is_whitespace)
+    {
+        return None;
+    }
+
+    if !domain.contains('.') {
+        return None;
+    }
+
+    let valid_labels = domain.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
+    });
+
+    valid_labels.then_some(domain)
+}
+
+async fn lookup_favicon_png(http: &Client, base_url: &url::Url) -> Option<String> {
+    let url = base_url.join("/favicon.png").ok()?;
+    let url = url.to_string();
+
+    if image_resource_exists(http, &url).await {
+        Some(url)
+    } else {
+        None
+    }
+}
+
+async fn image_resource_exists(http: &Client, url: &str) -> bool {
+    match http.head(url).header(ACCEPT, "image/*").send().await {
+        Ok(resp) if response_is_image(&resp) => return true,
+        _ => {}
+    }
+
+    match http
+        .get(url)
+        .header(ACCEPT, "image/*")
+        .header(RANGE, "bytes=0-0")
+        .send()
+        .await
+    {
+        Ok(resp) => response_is_image(&resp),
+        Err(_) => false,
+    }
+}
+
+fn response_is_image(resp: &reqwest::Response) -> bool {
+    resp.status().is_success()
+        && resp
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|content_type| content_type.starts_with("image/"))
 }
 
 /// Search external sources by domain, return first match.

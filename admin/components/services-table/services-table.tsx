@@ -71,7 +71,7 @@ const ServicesTable = ({
 	const panelOpen = mode !== 'idle';
 	const tableRef = useRef<HTMLDivElement>(null);
 
-	// Sync state → URL (without triggering Next.js navigation)
+	// Sync state -> URL (without triggering Next.js navigation)
 	useEffect(() => {
 		const params = new URLSearchParams();
 		if (mode === 'edit' && selected) {
@@ -96,7 +96,18 @@ const ServicesTable = ({
 		}
 		const qs = params.toString();
 		window.history.replaceState(null, '', qs ? `/?${qs}` : '/');
-	}, [selected, pagination, mode, prefillSlug, searchInput, columnFilters, selectedTags, showVerified, showUnverified, sorting]);
+	}, [
+		selected,
+		pagination,
+		mode,
+		prefillSlug,
+		searchInput,
+		columnFilters,
+		selectedTags,
+		showVerified,
+		showUnverified,
+		sorting
+	]);
 
 	const visibleData = data.filter((s) => {
 		if (s.verified ? !showVerified : !showUnverified) return false;
