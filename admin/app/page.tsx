@@ -1,5 +1,4 @@
 import ServicesTable from '@/components/services-table';
-import StatCard from '@/components/stat-card';
 import TopBar from '@/components/top-bar';
 import { fetchCategories, fetchS3Objects, fetchServices } from '@/lib/api';
 

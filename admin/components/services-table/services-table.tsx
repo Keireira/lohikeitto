@@ -114,7 +114,7 @@ const ServicesTable = ({
 		if (selectedTags.size > 0 && !s.tags.some((t) => selectedTags.has(t))) return false;
 		return true;
 	});
-	const verifiedCount = data.filter((s) => s.verified).length;
+	const _verifiedCount = data.filter((s) => s.verified).length;
 
 	const categoryNames = categories.map((c) => c.title).sort();
 	const categoryCounts: Record<string, number> = {};

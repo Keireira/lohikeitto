@@ -91,11 +91,20 @@ const CategoriesManager = ({
 	const uncategorized = services.filter((s) => !s.category);
 	const selectedCat = categories.find((c) => c.slug === selectedSlug) ?? null;
 	const selectedServices =
-		selectedSlug === '__uncategorized' ? uncategorized : selectedSlug ? (servicesByCategory.get(selectedSlug) ?? []) : [];
+		selectedSlug === '__uncategorized'
+			? uncategorized
+			: selectedSlug
+				? (servicesByCategory.get(selectedSlug) ?? [])
+				: [];
 
 	const handleCreate = async () => {
 		const title = newTitle.trim();
-		const slug = newSlug.trim() || title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+		const slug =
+			newSlug.trim() ||
+			title
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, '_')
+				.replace(/^_|_$/g, '');
 		if (!title || saving) return;
 		setSaving(true);
 		try {
@@ -189,7 +198,6 @@ const CategoriesManager = ({
 								if (e.key === 'Enter') handleCreate();
 								if (e.key === 'Escape') setAddingNew(false);
 							}}
-							autoFocus
 							className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent/50"
 						/>
 						<input
@@ -266,7 +274,6 @@ const CategoriesManager = ({
 											if (e.key === 'Enter') handleRename(selectedCat.slug);
 											if (e.key === 'Escape') setEditingId(null);
 										}}
-										autoFocus
 										className="rounded-lg border border-accent bg-background px-3 py-1 text-base font-bold focus:outline-none flex-1 max-w-sm"
 									/>
 									<button

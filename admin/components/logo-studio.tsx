@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import GradientTab from '@/components/vectorize-widget/gradient-tab';
 import { useVectorize } from '@/components/vectorize-widget/use-vectorize';
 import VectorTab from '@/components/vectorize-widget/vector-tab';
-import GradientTab from '@/components/vectorize-widget/gradient-tab';
-import type { Tab } from '@/components/vectorize-widget/vectorize-widget.d';
 import { API_URL } from '@/lib/api';
 import { formatSize } from '@/lib/format';
 import { toast } from '@/lib/toast';
@@ -98,13 +97,13 @@ const LogoStudio = ({ defaultQuery, slug: initialSlug, currentLogoUrl, onSave, o
 		return () => {
 			cancelled = true;
 		};
-	}, [currentLogoUrl]);
+	}, [currentLogoUrl, addLogo]);
 
 	useEffect(
 		() => () => {
 			for (const e of Object.values(logos)) if (e) URL.revokeObjectURL(e.blobUrl);
 		},
-		[]
+		[logos]
 	);
 
 	const fetchRemote = async (source: 'brandfetch' | 'logo.dev' | 'appstore' | 'playstore' | 'web') => {

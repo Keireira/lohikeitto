@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { contrastText, hexToRgb, rgbToHsl, rgbToOklch, toHex, parseColor } from '@/lib/color';
+import { useEffect, useRef, useState } from 'react';
+import { contrastText, hexToRgb, parseColor, rgbToHsl, rgbToOklch, toHex } from '@/lib/color';
+import type { Props, Sample } from './color-studio.d';
 import FormatRow from './format-row';
-import type { Sample, Props } from './color-studio.d';
 
 const LOUPE_GRID = 13;
 const LOUPE_SIZE = 130;
@@ -212,7 +212,7 @@ const ColorStudio = ({ color, originalColor, logoUrl, logoOk, name, onChange, on
 		}
 		const n = included.length;
 		onChange(toHex(Math.round(tr / n), Math.round(tg / n), Math.round(tb / n)));
-	}, [included.length, samples]);
+	}, [included.length, onChange, included]);
 
 	const [r, g, b] = hexToRgb(color);
 	const [h, s, l] = rgbToHsl(r, g, b);

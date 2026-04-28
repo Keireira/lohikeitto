@@ -1,7 +1,7 @@
 'use client';
 
 import { toast } from '@/lib/toast';
-import type { GradientMode, GradientData } from './vectorize-widget.d';
+import type { GradientData, GradientMode } from './vectorize-widget.d';
 
 const GradientTab = ({
 	blobUrl,
@@ -64,7 +64,8 @@ const GradientTab = ({
 							))}
 						</div>
 						<p className="text-[10px] text-muted-fg mt-2 capitalize">
-							{gradient.mode} {gradient.mode === 'linear' ? `${Math.round(gradient.angle_deg)}°` : ''} / {gradient.stops.length} stops
+							{gradient.mode} {gradient.mode === 'linear' ? `${Math.round(gradient.angle_deg)}°` : ''} /{' '}
+							{gradient.stops.length} stops
 						</p>
 					</>
 				) : gradientLoading ? (
@@ -82,7 +83,12 @@ const GradientTab = ({
 		{/* Footer: controls + actions */}
 		<div className="px-6 py-4 border-t border-border flex items-center gap-4 bg-muted/5 shrink-0">
 			<div className="flex items-center gap-1 rounded-xl border border-border p-0.5">
-				{([['bg', 'BG'], ['logo', 'Logo']] as const).map(([val, label]) => (
+				{(
+					[
+						['bg', 'BG'],
+						['logo', 'Logo']
+					] as const
+				).map(([val, label]) => (
 					<button
 						key={val}
 						type="button"

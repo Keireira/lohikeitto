@@ -45,7 +45,7 @@ const ServiceIcon = ({ src, name, color, size = 40 }: { src: string; name: strin
 		return () => {
 			cancelled = true;
 		};
-	}, [slug, cached]);
+	}, [slug, cached, setCache]);
 
 	return (
 		<Squircle

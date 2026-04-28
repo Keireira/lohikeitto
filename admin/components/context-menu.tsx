@@ -34,7 +34,7 @@ const ContextMenu = ({ x, y, items, onClose }: ContextMenuProps) => {
 		if (rect.bottom > window.innerHeight) {
 			ref.current.style.top = `${window.innerHeight - rect.height - 12}px`;
 		}
-	}, [x, y]);
+	}, []);
 
 	return (
 		<div

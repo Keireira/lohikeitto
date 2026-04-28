@@ -7,7 +7,7 @@ export { default as DirPicker } from './dir-picker';
 export { DownloadToast, useDownload } from './download-toast';
 export { default as DownloadWidget } from './download-widget';
 export { default as EnvSync } from './env-sync';
-export { FilterChip, CheckList } from './filter-bar';
+export { CheckList, FilterChip } from './filter-bar';
 export { default as LimbusTable } from './limbus-table';
 export { default as LogoStudio } from './logo-studio';
 export { default as S3Browser } from './s3-browser';

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { useDebouncedState } from '@tanstack/react-pacer';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import type { MenuItem } from '@/components/context-menu';
 import ContextMenu from '@/components/context-menu';
 import DirPicker from '@/components/dir-picker';
@@ -13,7 +13,7 @@ import type { S3ObjectT, ServiceT } from '@/lib/types';
 import useGlobalDownload from '@/lib/use-download';
 import { computeDirectory } from './compute-directory';
 import ImagePreview from './image-preview';
-import type { PreviewData, SortKey, SortDir } from './s3-browser.d';
+import type { PreviewData, SortDir, SortKey } from './s3-browser.d';
 import SortHeader from './sort-header';
 import { clearImageCache } from './thumb-cache';
 import Thumbnail from './thumbnail';
@@ -90,8 +90,8 @@ const S3Browser = ({ data: initialData, services }: { data: S3ObjectT[]; service
 		if (currentImagePos < imageEntries.length - 1) setPreviewIdx(imageEntries[currentImagePos + 1].idx);
 	};
 
-	const totalFiles = data.filter((o) => !o.key.endsWith('/') && o.size > 0).length;
-	const totalBytes = data.reduce((a, o) => a + o.size, 0);
+	const _totalFiles = data.filter((o) => !o.key.endsWith('/') && o.size > 0).length;
+	const _totalBytes = data.reduce((a, o) => a + o.size, 0);
 
 	const clearSearch = () => {
 		setSearchInput('');

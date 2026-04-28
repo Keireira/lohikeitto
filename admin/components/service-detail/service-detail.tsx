@@ -91,7 +91,7 @@ const ServiceEditor = ({
 	const [verified, setVerified] = useState(service.verified);
 	const [saving, setSaving] = useState(false);
 	const [copied, setCopied] = useState(false);
-	const [suggestions, setSuggestions] = useState<string[]>([]);
+	const [_suggestions, setSuggestions] = useState<string[]>([]);
 	const [samplerOpen, setSamplerOpen] = useState(false);
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [logoOk, setLogoOk] = useState(false);
@@ -128,7 +128,22 @@ const ServiceEditor = ({
 		setLogoStudioOpen(false);
 		setLogoOk(false);
 		setLogoBlobUrl(undefined);
-	}, [service.id]);
+	}, [
+		defaultBundleId,
+		prefillSlug,
+		service.alternative_names,
+		service.bundle_id,
+		service.category?.slug,
+		service.colors.primary,
+		service.description,
+		service.domains,
+		service.name,
+		service.ref_link,
+		service.slug,
+		service.social_links,
+		service.tags,
+		service.verified
+	]);
 
 	// Load logo + extract colors
 	useEffect(() => {
@@ -188,7 +203,7 @@ const ServiceEditor = ({
 		return () => {
 			cancelled = true;
 		};
-	}, [committedSlug, cachedLogoBlobUrl]);
+	}, [committedSlug, cachedLogoBlobUrl, setLogoCache]);
 
 	// Sampler canvas
 	const sanitizeDomain = (raw: string): string =>
@@ -718,7 +733,6 @@ const ServiceEditor = ({
 								value={deleteInput}
 								onChange={(e) => setDeleteInput(e.target.value)}
 								placeholder={service.name}
-								autoFocus
 								className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-danger/50"
 							/>
 						</div>
@@ -743,7 +757,7 @@ const ServiceEditor = ({
 										if (!res.ok) throw new Error(`${res.status}`);
 										toast.success(`${service.name} deleted`);
 										setDeleteConfirm(false);
-										onDelete!(service.id);
+										onDelete?.(service.id);
 									} catch (e) {
 										toast.error(e instanceof Error ? e.message : 'Delete failed');
 									} finally {

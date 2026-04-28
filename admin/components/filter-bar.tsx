@@ -105,7 +105,6 @@ const CheckList = ({
 						placeholder="Filter..."
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
-						autoFocus
 						className="w-full text-sm bg-transparent placeholder:text-muted-fg/50 focus:outline-none"
 					/>
 				</div>

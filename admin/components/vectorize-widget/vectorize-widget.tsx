@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import GradientTab from './gradient-tab';
 import { useVectorize } from './use-vectorize';
 import VectorTab from './vector-tab';
-import GradientTab from './gradient-tab';
 import type { Tab } from './vectorize-widget.d';
 
 const VectorizeWidget = ({ blobUrl, slug, onClose }: { blobUrl: string; slug: string; onClose: () => void }) => {

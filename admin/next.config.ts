@@ -8,8 +8,8 @@ const nextConfig: NextConfig = {
 		resolveAlias: {
 			fs: { browser: './empty-module.js' },
 			path: { browser: './empty-module.js' },
-			crypto: { browser: './empty-module.js' },
-		},
+			crypto: { browser: './empty-module.js' }
+		}
 	},
 	rewrites: async () => [
 		{

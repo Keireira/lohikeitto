@@ -59,7 +59,7 @@ export const useSelection = (entries: Entry[]): UseSelectionReturn => {
 	useEffect(() => {
 		setSelected((prev) => (prev.size === 0 ? prev : new Set()));
 		lastClickRef.current = null;
-	}, [entries]);
+	}, []);
 
 	// Esc to clear selection
 	useEffect(() => {

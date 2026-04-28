@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
-import { toast } from '@/lib/toast';
+import { type Dispatch, type RefObject, type SetStateAction, useRef, useState } from 'react';
 import { API_URL } from '@/lib/api';
-import type { Engine, GradientMode, GradientData } from './vectorize-widget.d';
+import { toast } from '@/lib/toast';
+import type { Engine, GradientData, GradientMode } from './vectorize-widget.d';
 
 export type UseVectorizeReturn = {
 	svgString: string | null;

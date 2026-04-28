@@ -24,7 +24,7 @@ const ImagePreview = ({
 
 	useEffect(() => {
 		setDims(null);
-	}, [data.src]);
+	}, []);
 
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
