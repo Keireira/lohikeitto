@@ -17,7 +17,10 @@ pub fn parse_logo(html: &str, base_url: &url::Url) -> Option<WebLogo> {
         .unwrap_or_default();
 
     let logo_url = find_site_icon(html).or_else(|| {
-        extract_meta(html, "og:image")
+        extract_itemprop_url(html, "image")
+            .or_else(|| extract_meta(html, "og:logo"))
+            .or_else(|| extract_meta(html, "logo"))
+            .or_else(|| extract_meta(html, "og:image"))
             .or_else(|| extract_meta(html, "twitter:image"))
             .or_else(|| extract_meta(html, "twitter:image:src"))
     });
@@ -173,6 +176,35 @@ fn parse_largest_size(sizes: &str) -> u32 {
         })
         .max()
         .unwrap_or(0)
+}
+
+fn extract_itemprop_url(html: &str, itemprop: &str) -> Option<String> {
+    let mut pos = 0;
+    while let Some(tag_start) = html[pos..].find('<').map(|found| pos + found) {
+        if html[tag_start..].starts_with("</") {
+            pos = tag_start + 2;
+            continue;
+        }
+
+        let Some(tag_end) = html[tag_start..].find('>').map(|end| tag_start + end) else {
+            break;
+        };
+        let attrs = parse_attrs(&html[tag_start..=tag_end]);
+        let matches_itemprop = attrs
+            .iter()
+            .any(|(key, value)| key == "itemprop" && value == itemprop);
+
+        if matches_itemprop {
+            return attr_value(&attrs, "src")
+                .or_else(|| attr_value(&attrs, "content"))
+                .or_else(|| attr_value(&attrs, "href"))
+                .map(ToString::to_string);
+        }
+
+        pos = tag_end + 1;
+    }
+
+    None
 }
 
 /// Resolve a potentially relative URL against a base URL.
@@ -390,6 +422,32 @@ mod tests {
         let parsed = parse_logo(html, &base_url()).unwrap();
 
         assert_eq!(parsed.logo_url, "https://uha.app/preview.png");
+    }
+
+    #[test]
+    fn prefers_itemprop_image_over_og_image() {
+        let html = r#"
+            <meta property="og:title" content="UHA">
+            <meta property="og:image" content="https://uha.app/preview.png">
+            <img itemprop="image" src="/site-logo.png">
+        "#;
+
+        let parsed = parse_logo(html, &base_url()).unwrap();
+
+        assert_eq!(parsed.logo_url, "https://uha.app/site-logo.png");
+    }
+
+    #[test]
+    fn uses_og_logo_before_og_image() {
+        let html = r#"
+            <meta property="og:title" content="UHA">
+            <meta property="og:image" content="https://uha.app/preview.png">
+            <meta property="og:logo" content="https://uha.app/logo.png">
+        "#;
+
+        let parsed = parse_logo(html, &base_url()).unwrap();
+
+        assert_eq!(parsed.logo_url, "https://uha.app/logo.png");
     }
 
     #[test]

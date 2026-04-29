@@ -47,18 +47,21 @@ pub fn parse_details_page(html: &str, package_name: &str) -> Option<PlayStoreApp
 
     let json_ld = extract_json_ld(html);
 
-    let name = extract_meta(html, "og:title").or_else(|| {
-        json_ld
-            .as_ref()
-            .and_then(|value| json_string(value, "name"))
-    })?;
+    let name = extract_itemprop_text(html, "name")
+        .or_else(|| {
+            json_ld
+                .as_ref()
+                .and_then(|value| json_string(value, "name"))
+        })
+        .or_else(|| extract_meta(html, "og:title"))?;
 
-    let icon_url = extract_meta(html, "og:image")
+    let icon_url = extract_itemprop_url(html, "image")
         .or_else(|| {
             json_ld
                 .as_ref()
                 .and_then(|value| json_string(value, "image"))
         })
+        .or_else(|| extract_meta(html, "og:image"))
         .unwrap_or_default();
 
     let description = extract_meta(html, "og:description").or_else(|| {
@@ -388,6 +391,104 @@ fn json_string(value: &serde_json::Value, key: &str) -> Option<String> {
     value.get(key)?.as_str().map(ToString::to_string)
 }
 
+fn extract_itemprop_text(html: &str, itemprop: &str) -> Option<String> {
+    find_itemprop_element(html, itemprop).and_then(|element| {
+        attr_value(&element.attrs, "content")
+            .map(ToString::to_string)
+            .or_else(|| element.inner_html.map(|inner_html| strip_tags(&inner_html)))
+    })
+}
+
+fn extract_itemprop_url(html: &str, itemprop: &str) -> Option<String> {
+    find_itemprop_element(html, itemprop).and_then(|element| {
+        attr_value(&element.attrs, "src")
+            .or_else(|| attr_value(&element.attrs, "content"))
+            .map(ToString::to_string)
+    })
+}
+
+#[derive(Debug)]
+struct ItempropElement {
+    attrs: Vec<(String, String)>,
+    inner_html: Option<String>,
+}
+
+fn find_itemprop_element(html: &str, itemprop: &str) -> Option<ItempropElement> {
+    let mut pos = 0;
+    while let Some(tag_start) = html[pos..].find('<').map(|found| pos + found) {
+        if html[tag_start..].starts_with("</") {
+            pos = tag_start + 2;
+            continue;
+        }
+
+        let Some(tag_end) = html[tag_start..].find('>').map(|end| tag_start + end) else {
+            break;
+        };
+        let tag = &html[tag_start..=tag_end];
+        let attrs = parse_attrs(tag);
+        let matches_itemprop = attrs
+            .iter()
+            .any(|(key, value)| key == "itemprop" && value == itemprop);
+
+        if matches_itemprop {
+            let tag_name = tag_name(tag)?;
+            let inner_html = if is_void_tag(&tag_name) {
+                None
+            } else {
+                extract_element_inner_html(html, tag_end + 1, &tag_name)
+            };
+
+            return Some(ItempropElement { attrs, inner_html });
+        }
+
+        pos = tag_end + 1;
+    }
+
+    None
+}
+
+fn tag_name(tag: &str) -> Option<String> {
+    let tag = tag.trim_start_matches('<').trim_start();
+    let end = tag
+        .find(|ch: char| ch.is_whitespace() || matches!(ch, '>' | '/'))
+        .unwrap_or(tag.len());
+    let name = tag[..end].to_ascii_lowercase();
+
+    if name.is_empty() { None } else { Some(name) }
+}
+
+fn is_void_tag(tag_name: &str) -> bool {
+    matches!(
+        tag_name,
+        "area"
+            | "base"
+            | "br"
+            | "col"
+            | "embed"
+            | "hr"
+            | "img"
+            | "input"
+            | "link"
+            | "meta"
+            | "source"
+            | "track"
+            | "wbr"
+    )
+}
+
+fn extract_element_inner_html(html: &str, content_start: usize, tag_name: &str) -> Option<String> {
+    let lower = html[content_start..].to_ascii_lowercase();
+    let close = format!("</{tag_name}>");
+    let end = lower.find(&close)?;
+    Some(html[content_start..content_start + end].to_string())
+}
+
+fn attr_value<'a>(attrs: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    attrs
+        .iter()
+        .find_map(|(key, value)| (key == name).then_some(value.as_str()))
+}
+
 fn parse_attrs(fragment: &str) -> Vec<(String, String)> {
     let mut attrs = Vec::new();
     let bytes = fragment.as_bytes();
@@ -461,6 +562,18 @@ fn normalize_google_markup(html: &str) -> String {
 
 fn cleanup_app_name(name: &str) -> String {
     let cleaned = strip_tags(name).trim().to_string();
+    if cleaned.to_ascii_lowercase().contains("google play") {
+        let candidates = [" - ", " – ", " — ", " | "]
+            .into_iter()
+            .flat_map(|separator| cleaned.split(separator))
+            .map(str::trim)
+            .filter(|part| !part.is_empty() && !part.to_ascii_lowercase().contains("google play"));
+
+        if let Some(app_name) = candidates.max_by_key(|part| part.chars().count()) {
+            return app_name.to_string();
+        }
+    }
+
     cleaned
         .strip_suffix(" - Apps on Google Play")
         .or_else(|| cleaned.strip_suffix(" - Google Play"))
@@ -678,6 +791,52 @@ mod tests {
         );
         assert_eq!(app.description.as_deref(), Some("A & B"));
         assert_eq!(app.category.as_deref(), Some("Tools"));
+    }
+
+    #[test]
+    fn prefers_details_itemprop_name_and_image_over_og_meta() {
+        let html = r#"
+            <meta content="Приложения в Google Play – Wrong Localized Title" property="og:title">
+            <meta content="https://play-lh.googleusercontent.com/wrong=s96" property="og:image">
+            <h1><span itemprop="name">Emby for Android</span></h1>
+            <img itemprop="image" src="https://play-lh.googleusercontent.com/emby=s64">
+        "#;
+
+        let app = parse_details_page(html, "com.mb.android").unwrap();
+
+        assert_eq!(app.name, "Emby for Android");
+        assert_eq!(
+            app.icon_url,
+            "https://play-lh.googleusercontent.com/emby=s512"
+        );
+    }
+
+    #[test]
+    fn cleans_localized_google_play_title_prefixes() {
+        let html = r#"
+            <meta content="Приложения в Google Play – imo Видеозвонки" property="og:title">
+            <meta content="https://play-lh.googleusercontent.com/example=s96" property="og:image">
+        "#;
+
+        let app = parse_details_page(html, "com.imo.android.imoim").unwrap();
+
+        assert_eq!(app.name, "imo Видеозвонки");
+    }
+
+    #[test]
+    fn cleans_google_play_title_suffixes_without_language_assumptions() {
+        assert_eq!(
+            cleanup_app_name("imo Видеозвонки - Приложения в Google Play"),
+            "imo Видеозвонки"
+        );
+        assert_eq!(
+            cleanup_app_name("Приложения в Google Play – imo Видеозвонки"),
+            "imo Видеозвонки"
+        );
+        assert_eq!(
+            cleanup_app_name("Example App - Apps on Google Play"),
+            "Example App"
+        );
     }
 
     #[test]
