@@ -40,7 +40,7 @@ pub async fn search(
         }
     };
 
-    let bf_fut = async {
+    let brandfetch_fut = async {
         if sources.has(Source::Brandfetch) {
             search_brandfetch(http, &config.brandfetch_client_id, q).await
         } else {
@@ -48,7 +48,7 @@ pub async fn search(
         }
     };
 
-    let ld_fut = async {
+    let logodev_fut = async {
         if sources.has(Source::Logodev) {
             search_logodev(http, &config.logodev_pk, &config.logodev_sk, q).await
         } else {
@@ -56,7 +56,7 @@ pub async fn search(
         }
     };
 
-    let as_fut = async {
+    let appstore_fut = async {
         if sources.has(Source::AppStore) {
             search_appstore(http, q, app_store_country).await
         } else {
@@ -64,7 +64,7 @@ pub async fn search(
         }
     };
 
-    let ps_fut = async {
+    let playstore_fut = async {
         if sources.has(Source::PlayStore) {
             let ps_lang = if language.is_empty() { "en" } else { language };
             search_playstore(http, q, playstore_country, ps_lang).await
@@ -81,8 +81,14 @@ pub async fn search(
         }
     };
 
-    let (inhouse, mut brandfetch, mut logodev, mut appstore, mut playstore, mut web_results) =
-        tokio::join!(inhouse_fut, bf_fut, ld_fut, as_fut, ps_fut, web_fut);
+    let (inhouse, mut brandfetch, mut logodev, mut appstore, mut playstore, mut web_results) = tokio::join!(
+        inhouse_fut,
+        brandfetch_fut,
+        logodev_fut,
+        appstore_fut,
+        playstore_fut,
+        web_fut
+    );
 
     // When 3+ providers returned data, cap external sources to avoid flooding
     let active = [
@@ -544,25 +550,26 @@ async fn lookup_web(http: &Client, domain: &str) -> Option<SearchResult> {
     })
 }
 
-fn normalize_web_domain(domain: &str) -> Option<String> {
-    let domain = domain.trim().trim_end_matches('.').to_ascii_lowercase();
-
-    if domain.is_empty()
-        || domain.len() > 253
-        || domain.contains('/')
-        || domain.contains('@')
-        || domain.contains(':')
-        || domain.contains('\\')
-        || domain.contains(char::is_whitespace)
-    {
+fn normalize_web_domain(input: &str) -> Option<String> {
+    let input = input.trim();
+    if input.is_empty() || input.contains(char::is_whitespace) {
         return None;
     }
 
-    if !domain.contains('.') {
+    let host = if input.contains("://") {
+        url::Url::parse(input).ok()?.host_str()?.to_string()
+    } else {
+        let with_scheme = format!("https://{input}");
+        url::Url::parse(&with_scheme).ok()?.host_str()?.to_string()
+    };
+
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+
+    if host.is_empty() || host.len() > 253 || !host.contains('.') {
         return None;
     }
 
-    let valid_labels = domain.split('.').all(|label| {
+    let valid_labels = host.split('.').all(|label| {
         !label.is_empty()
             && label.len() <= 63
             && !label.starts_with('-')
@@ -571,8 +578,26 @@ fn normalize_web_domain(domain: &str) -> Option<String> {
                 .chars()
                 .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
     });
+    if !valid_labels {
+        return None;
+    }
 
-    valid_labels.then_some(domain)
+    let stripped = match host.split_once('.') {
+        Some((first, rest)) if rest.contains('.') && is_www_label(first) => rest.to_string(),
+        _ => host,
+    };
+
+    Some(stripped)
+}
+
+fn is_www_label(label: &str) -> bool {
+    let Some(rest) = label
+        .strip_prefix("www")
+        .or_else(|| label.strip_prefix("ww"))
+    else {
+        return false;
+    };
+    rest.is_empty() || rest.chars().all(|c| c.is_ascii_digit())
 }
 
 async fn lookup_favicon_png(http: &Client, base_url: &url::Url) -> Option<String> {
