@@ -64,7 +64,7 @@ fn service_to_response(row: ServiceRow, s3_base: &str) -> ServiceResponse {
     path = "/service/{lookup}",
     tag = "Services",
     summary = "Get a service by ID or domain",
-    description = "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources and adds the result to the approval queue. Without `source_hint`, only brandfetch + logo.dev are searched. Use `source_hint` for App Store (`appstore`), Google Play (`playstore`), or direct web scraping (`web`).",
+    description = "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources and returns the external result. Without `source_hint`, only brandfetch + logo.dev are searched. Use `source_hint` for App Store (`appstore`), Google Play (`playstore`), or direct web scraping (`web`).",
     params(
         ("lookup" = String, Path, description = "Service UUID, domain name, or bundle ID"),
         ("source_hint" = Option<String>, Query, description = "External source for exact lookup: `appstore`, `playstore`, or `web`"),
@@ -136,28 +136,8 @@ pub async fn get(
     .await
     .ok_or(ApiError::NotFound)?;
 
-    // Stash in limbus for admin approval
-    let limbus_id: Uuid = sqlx::query_scalar(
-        r#"INSERT INTO limbus (id, name, domain, logo_url, source, description, bundle_id, category_slug, tags)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           ON CONFLICT (domain) DO NOTHING
-           RETURNING id"#,
-    )
-    .bind(result.id)
-    .bind(&result.name)
-    .bind(domain)
-    .bind(&result.logo_url)
-    .bind(&result.source)
-    .bind(&result.description)
-    .bind(&result.bundle_id)
-    .bind(&result.category_slug)
-    .bind(result.tags.as_deref().unwrap_or_default())
-    .fetch_optional(&state.db)
-    .await?
-    .unwrap_or(result.id);
-
     Ok(Json(ServiceResponse {
-        id: limbus_id,
+        id: result.id,
         name: result.name,
         slug: String::new(),
         bundle_id: result.bundle_id,

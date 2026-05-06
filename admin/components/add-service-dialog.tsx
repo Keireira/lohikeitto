@@ -3,24 +3,20 @@
 import { useState } from 'react';
 import { API_URL } from '@/lib/api';
 import { toast } from '@/lib/toast';
-import type { CategoryT, LimbusT, ServiceT } from '@/lib/types';
-
-type Mode = 'service' | 'limbus';
+import type { CategoryT, ServiceT } from '@/lib/types';
 
 type AddServiceDialogProps = {
-	mode: Mode;
 	categories?: CategoryT[];
 	onClose: () => void;
-	onCreated: (item: ServiceT | LimbusT) => void;
+	onCreated: (item: ServiceT) => void;
 };
 
-const AddServiceDialog = ({ mode, categories, onClose, onCreated }: AddServiceDialogProps) => {
+const AddServiceDialog = ({ categories, onClose, onCreated }: AddServiceDialogProps) => {
 	const [name, setName] = useState('');
 	const [domain, setDomain] = useState('');
 	const [slug, setSlug] = useState('');
 	const [color, setColor] = useState('#0053db');
 	const [categorySlug, setCategorySlug] = useState('');
-	const [source, setSource] = useState('admin');
 	const [saving, setSaving] = useState(false);
 
 	const autoSlug = name
@@ -32,37 +28,21 @@ const AddServiceDialog = ({ mode, categories, onClose, onCreated }: AddServiceDi
 		if (!name.trim() || !domain.trim() || saving) return;
 		setSaving(true);
 		try {
-			if (mode === 'service') {
-				const res = await fetch(`${API_URL}/services`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						name: name.trim(),
-						slug: slug.trim() || autoSlug,
-						domains: [domain.trim()],
-						category_slug: categorySlug || null,
-						colors: { primary: color },
-						ref_link: null
-					})
-				});
-				if (!res.ok) throw new Error(`${res.status}`);
-				const created: ServiceT = await res.json();
-				onCreated(created);
-			} else {
-				const res = await fetch(`${API_URL}/limbus`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						name: name.trim(),
-						domain: domain.trim(),
-						logo_url: null,
-						source: source.trim() || 'admin'
-					})
-				});
-				if (!res.ok) throw new Error(`${res.status}`);
-				const created: LimbusT = await res.json();
-				onCreated(created);
-			}
+			const res = await fetch(`${API_URL}/services`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: name.trim(),
+					slug: slug.trim() || autoSlug,
+					domains: [domain.trim()],
+					category_slug: categorySlug || null,
+					colors: { primary: color },
+					ref_link: null
+				})
+			});
+			if (!res.ok) throw new Error(`${res.status}`);
+			const created: ServiceT = await res.json();
+			onCreated(created);
 			onClose();
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : 'Failed to create');
@@ -72,25 +52,27 @@ const AddServiceDialog = ({ mode, categories, onClose, onCreated }: AddServiceDi
 	};
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-			<div
-				className="w-full max-w-md rounded-2xl bg-surface border border-border shadow-2xl overflow-hidden"
-				onClick={(e) => e.stopPropagation()}
-			>
+		<div className="fixed inset-0 z-50 flex items-center justify-center">
+			<button
+				type="button"
+				aria-label="Close dialog"
+				className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-default"
+				onClick={onClose}
+			/>
+			<div className="relative w-full max-w-md rounded-2xl bg-surface border border-border shadow-2xl overflow-hidden">
 				<div className="px-6 py-4 border-b border-border">
-					<h3 className="text-base font-bold text-foreground">
-						{mode === 'service' ? 'Add Service' : 'Add to Limbus'}
-					</h3>
-					<p className="text-xs text-muted-fg mt-0.5">
-						{mode === 'service' ? 'Create a new service in the catalogue' : 'Add an entry to the review queue'}
-					</p>
+					<h3 className="text-base font-bold text-foreground">Add Service</h3>
+					<p className="text-xs text-muted-fg mt-0.5">Create a new service in the catalogue</p>
 				</div>
 
 				<div className="px-6 py-5 space-y-4">
 					{/* Name */}
 					<div>
-						<label className="text-xs font-medium text-muted-fg block mb-1.5">Name</label>
+						<label htmlFor="add-service-name" className="text-xs font-medium text-muted-fg block mb-1.5">
+							Name
+						</label>
 						<input
+							id="add-service-name"
 							type="text"
 							value={name}
 							onChange={(e) => setName(e.target.value)}
@@ -101,8 +83,11 @@ const AddServiceDialog = ({ mode, categories, onClose, onCreated }: AddServiceDi
 
 					{/* Domain */}
 					<div>
-						<label className="text-xs font-medium text-muted-fg block mb-1.5">Domain</label>
+						<label htmlFor="add-service-domain" className="text-xs font-medium text-muted-fg block mb-1.5">
+							Domain
+						</label>
 						<input
+							id="add-service-domain"
 							type="text"
 							value={domain}
 							onChange={(e) => setDomain(e.target.value)}
@@ -111,65 +96,57 @@ const AddServiceDialog = ({ mode, categories, onClose, onCreated }: AddServiceDi
 						/>
 					</div>
 
-					{mode === 'service' && (
-						<>
-							{/* Slug */}
-							<div>
-								<label className="text-xs font-medium text-muted-fg block mb-1.5">Slug</label>
-								<input
-									type="text"
-									value={slug}
-									onChange={(e) => setSlug(e.target.value)}
-									placeholder={autoSlug || 'auto-generated'}
-									className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent/50"
-								/>
-							</div>
+					{/* Slug */}
+					<div>
+						<label htmlFor="add-service-slug" className="text-xs font-medium text-muted-fg block mb-1.5">
+							Slug
+						</label>
+						<input
+							id="add-service-slug"
+							type="text"
+							value={slug}
+							onChange={(e) => setSlug(e.target.value)}
+							placeholder={autoSlug || 'auto-generated'}
+							className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent/50"
+						/>
+					</div>
 
-							{/* Color + Category row */}
-							<div className="flex gap-3">
-								<div className="flex-1">
-									<label className="text-xs font-medium text-muted-fg block mb-1.5">Category</label>
-									<select
-										value={categorySlug}
-										onChange={(e) => setCategorySlug(e.target.value)}
-										className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent/50 cursor-pointer"
-									>
-										<option value="">None</option>
-										{categories?.map((c) => (
-											<option key={c.slug} value={c.slug}>
-												{c.title}
-											</option>
-										))}
-									</select>
-								</div>
-								<div className="w-24">
-									<label className="text-xs font-medium text-muted-fg block mb-1.5">Color</label>
-									<div className="flex items-center gap-2 rounded-lg border border-border bg-background px-2 py-1.5">
-										<input
-											type="color"
-											value={color}
-											onChange={(e) => setColor(e.target.value)}
-											className="size-6 rounded cursor-pointer border-0 p-0"
-										/>
-										<span className="text-xs font-mono text-muted-fg">{color}</span>
-									</div>
-								</div>
-							</div>
-						</>
-					)}
-
-					{mode === 'limbus' && (
-						<div>
-							<label className="text-xs font-medium text-muted-fg block mb-1.5">Source</label>
-							<input
-								type="text"
-								value={source}
-								onChange={(e) => setSource(e.target.value)}
-								placeholder="admin"
-								className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent/50"
-							/>
+					{/* Color + Category row */}
+					<div className="flex gap-3">
+						<div className="flex-1">
+							<label htmlFor="add-service-category" className="text-xs font-medium text-muted-fg block mb-1.5">
+								Category
+							</label>
+							<select
+								id="add-service-category"
+								value={categorySlug}
+								onChange={(e) => setCategorySlug(e.target.value)}
+								className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent/50 cursor-pointer"
+							>
+								<option value="">None</option>
+								{categories?.map((c) => (
+									<option key={c.slug} value={c.slug}>
+										{c.title}
+									</option>
+								))}
+							</select>
 						</div>
-					)}
+						<div className="w-24">
+							<label htmlFor="add-service-color" className="text-xs font-medium text-muted-fg block mb-1.5">
+								Color
+							</label>
+							<div className="flex items-center gap-2 rounded-lg border border-border bg-background px-2 py-1.5">
+								<input
+									id="add-service-color"
+									type="color"
+									value={color}
+									onChange={(e) => setColor(e.target.value)}
+									className="size-6 rounded cursor-pointer border-0 p-0"
+								/>
+								<span className="text-xs font-mono text-muted-fg">{color}</span>
+							</div>
+						</div>
+					</div>
 				</div>
 
 				<div className="px-6 py-4 border-t border-border flex items-center justify-end gap-3">

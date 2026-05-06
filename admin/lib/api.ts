@@ -1,4 +1,4 @@
-import type { CategoryT, LimbusT, S3InfoT, S3ObjectT, ServiceT } from './types';
+import type { CategoryT, S3InfoT, S3ObjectT, ServiceT } from './types';
 
 const API_URL = process.env.ADMIN_API_URL ?? process.env.NEXT_PUBLIC_ADMIN_API_URL ?? 'http://localhost:1337';
 
@@ -45,22 +45,11 @@ const fetchCategories = async (): Promise<CategoryT[]> => {
 	return res.json();
 };
 
-const fetchLimbus = async (): Promise<LimbusT[]> => {
-	const res = await fetch(`${API_URL}/limbus`, { cache: 'no-store' });
-
-	if (!res.ok) {
-		throw new Error(`Failed to fetch limbus: ${res.status}`);
-	}
-
-	return res.json();
-};
-
 const s3ArchiveKeysUrl = `${API_URL}/s3/archive-keys`;
 
 export {
 	API_URL,
 	fetchCategories,
-	fetchLimbus,
 	fetchS3Info,
 	fetchS3Objects,
 	fetchServices,

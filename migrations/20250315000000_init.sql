@@ -549,16 +549,6 @@ INSERT INTO services (id, name, slug, bundle_id, description, domains, alternati
 ('ac735f97-7d27-4bdc-8001-52c7225b6bba', 'Яндекс Go', 'yandex-go', 'com.yandex.go', NULL, ARRAY['go.yandex','com.yandex.go']::text[], ARRAY['хуяндекс','яндекс го','яндекс такси']::text[], '{}', true, 'transportation', '{"primary":"#ffea00"}', '{}', NULL),
 ('55000002-0001-4000-8000-000000000010', 'Яндекс Музыка', 'yandex-music', 'com.yandex.music', NULL, ARRAY['music.yandex','com.yandex.music','music.yandex.ru']::text[], ARRAY['хуяндекс']::text[], '{}', true, 'music_and_audiobooks', '{"primary":"#ffbc0d"}', '{}', NULL);
 
-
-CREATE TABLE limbus (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name            TEXT NOT NULL,
-    domain          TEXT NOT NULL UNIQUE,
-    logo_url        TEXT,
-    source          TEXT NOT NULL,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 -- ============================================================
 -- Indexes
 -- ============================================================

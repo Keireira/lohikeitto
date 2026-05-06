@@ -88,7 +88,7 @@ When 3+ sources return data, each external source is capped at **5 results** to 
 
 ### Service lookup
 
-`GET /service/{lookup}` resolves a service by UUID, slug, domain, or bundle ID. If not found locally, it searches external sources and stashes the result in the **limbus** (approval queue).
+`GET /service/{lookup}` resolves a service by UUID, slug, domain, or bundle ID. If not found locally, it searches external sources and returns the external result.
 
 For mobile apps or web domains, use `?source_hint=` to trigger an exact lookup:
 

@@ -131,48 +131,6 @@ pub async fn export_sql(State(state): State<AdminState>) -> Result<Response, Adm
         sql.push('\n');
     }
 
-    // Export limbus
-    let limbus_rows = sqlx::query(
-        r#"
-        	SELECT id, name, domain, logo_url, source, created_at
-        	FROM limbus
-        	ORDER BY created_at DESC
-        "#,
-    )
-    .fetch_all(&state.db)
-    .await?;
-
-    if !limbus_rows.is_empty() {
-        writeln!(
-            sql,
-            "-- Limbus\nINSERT INTO limbus (id, name, domain, logo_url, source) VALUES"
-        )
-        .unwrap();
-
-        let last_row = limbus_rows.last().expect("No last row");
-        let last_row_id: uuid::Uuid = last_row.get("id");
-
-        for r in &limbus_rows {
-            let id: uuid::Uuid = r.get("id");
-            let name: String = r.get("name");
-            let domain: String = r.get("domain");
-            let logo_url: Option<String> = r.get("logo_url");
-            let source: String = r.get("source");
-            let is_last_row = last_row_id == id;
-
-            writeln!(
-                sql,
-                "  ('{id}', '{}', '{}', {}, '{}'){}",
-                sql_escape(&name),
-                sql_escape(&domain),
-                sql_opt(&logo_url),
-                sql_escape(&source),
-                if is_last_row { ";" } else { "," },
-            )
-            .unwrap();
-        }
-    }
-
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/sql")
@@ -193,7 +151,6 @@ pub async fn drop_all(
     let mut tx = state.db.begin().await?;
 
     // Order matters due to foreign keys
-    sqlx::query("DELETE FROM limbus").execute(&mut *tx).await?;
     sqlx::query("DELETE FROM services")
         .execute(&mut *tx)
         .await?;
@@ -217,13 +174,13 @@ pub async fn import_sql(
         .filter(|s| !s.is_empty() && !s.starts_with("--"))
         .collect();
 
-    // Sort: categories first, then services/limbus, then everything else (UPDATEs, DELETEs)
+    // Sort: categories first, then services, then everything else (UPDATEs, DELETEs)
     statements.sort_by_key(|s| {
         let lower = s.to_lowercase();
 
         if lower.contains("into categories") {
             0
-        } else if lower.contains("into services") || lower.contains("into limbus") {
+        } else if lower.contains("into services") {
             1
         } else {
             2

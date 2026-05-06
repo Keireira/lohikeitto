@@ -1,7 +1,6 @@
 export {
 	API_URL,
 	fetchCategories,
-	fetchLimbus,
 	fetchS3Info,
 	fetchS3Objects,
 	fetchServices,
@@ -16,6 +15,6 @@ export { formatDate, formatEta, formatSize, MONTHS, triggerSave } from './format
 export { clearImageCache, getCachedImage, refetchImage } from './image-cache';
 export { useLogoCacheStore } from './logo-cache';
 export { toast, useToastStore } from './toast';
-export type { CategoryT, LimbusT, S3InfoT, S3ObjectT, ServiceT } from './types';
+export type { CategoryT, S3InfoT, S3ObjectT, ServiceT } from './types';
 export { default as useClickOutside } from './use-click-outside';
 export { default as useGlobalDownload } from './use-download';

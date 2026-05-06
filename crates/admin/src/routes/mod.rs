@@ -1,6 +1,5 @@
 mod database;
 mod health;
-mod limbus;
 mod logos;
 pub mod s3;
 mod services;
@@ -25,10 +24,6 @@ pub fn router() -> Router<AdminState> {
         .route("/categories", post(services::create_category))
         .route("/categories/{slug}", put(services::update_category))
         .route("/categories/{slug}", delete(services::delete_category))
-        .route("/limbus", get(limbus::list))
-        .route("/limbus", post(limbus::create))
-        .route("/limbus/{id}", delete(limbus::remove))
-        .route("/limbus/{id}/approve", post(limbus::approve))
         .route("/s3", get(s3::list))
         .route("/s3/info", get(s3::info))
         .route("/s3/archive", get(s3::archive_stream))

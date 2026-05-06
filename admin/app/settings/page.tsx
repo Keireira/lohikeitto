@@ -187,7 +187,7 @@ const SettingsPage = () => {
 							<div>
 								<p className="text-sm font-semibold text-danger">Drop All Data</p>
 								<p className="text-xs text-muted-fg mt-0.5">
-									Permanently delete all services, categories, and limbus entries. Irreversible.
+									Permanently delete all services and categories. Irreversible.
 								</p>
 							</div>
 							<button

@@ -142,7 +142,7 @@
       "get": {
         "tags": ["Services"],
         "summary": "Get a service by ID or domain",
-        "description": "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources and adds the result to the approval queue. Without `source_hint`, only brandfetch + logo.dev are searched. Use `source_hint` for App Store (`appstore`), Google Play (`playstore`), or direct web scraping (`web`).",
+        "description": "Look up a service by UUID, domain, or package/bundle ID. If not found locally, searches external sources and returns the external result. Without `source_hint`, only brandfetch + logo.dev are searched. Use `source_hint` for App Store (`appstore`), Google Play (`playstore`), or direct web scraping (`web`).",
         "operationId": "get",
         "parameters": [
           {
