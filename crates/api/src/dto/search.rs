@@ -120,7 +120,7 @@ pub struct SearchResult {
     /// Result source: `inhouse`, `brandfetch`, `logo.dev`, `appstore`, `playstore`, or `web`
     #[schema(example = "inhouse")]
     pub source: String,
-    /// Service description — not included in search response, used internally for limbus
+    /// Service description — not included in search response
     #[serde(skip_serializing)]
     #[schema(ignore)]
     pub description: Option<String>,

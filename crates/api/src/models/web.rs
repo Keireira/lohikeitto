@@ -1,3 +1,5 @@
+use scraper::{ElementRef, Html, Selector};
+
 /// Parsed logo/icon data from a web page via icon discovery, Open Graph, or Twitter Card.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WebLogo {
@@ -9,20 +11,22 @@ pub struct WebLogo {
 /// Priority: apple-touch-icon -> favicon links -> og:image -> twitter:image -> /favicon.ico.
 /// Open Graph images are social previews, so they are deliberately ranked below page icons.
 pub fn parse_logo(html: &str, base_url: &url::Url) -> Option<WebLogo> {
-    let name = extract_meta(html, "og:site_name")
-        .or_else(|| extract_meta(html, "og:title"))
-        .or_else(|| extract_meta(html, "twitter:title"))
-        .or_else(|| extract_title(html))
+    let document = Html::parse_document(html);
+
+    let name = extract_meta(&document, "og:site_name")
+        .or_else(|| extract_meta(&document, "og:title"))
+        .or_else(|| extract_meta(&document, "twitter:title"))
+        .or_else(|| extract_title(&document))
         .and_then(|value| sanitize_text(&value))
         .unwrap_or_default();
 
-    let logo_url = find_site_icon(html).or_else(|| {
-        extract_itemprop_url(html, "image")
-            .or_else(|| extract_meta(html, "og:logo"))
-            .or_else(|| extract_meta(html, "logo"))
-            .or_else(|| extract_meta(html, "og:image"))
-            .or_else(|| extract_meta(html, "twitter:image"))
-            .or_else(|| extract_meta(html, "twitter:image:src"))
+    let logo_url = find_site_icon(&document).or_else(|| {
+        extract_itemprop_url(&document, "image")
+            .or_else(|| extract_meta(&document, "og:logo"))
+            .or_else(|| extract_meta(&document, "logo"))
+            .or_else(|| extract_meta(&document, "og:image"))
+            .or_else(|| extract_meta(&document, "twitter:image"))
+            .or_else(|| extract_meta(&document, "twitter:image:src"))
     });
 
     let logo_url = match logo_url {
@@ -39,65 +43,52 @@ pub fn parse_logo(html: &str, base_url: &url::Url) -> Option<WebLogo> {
 }
 
 /// Extract content from `<meta property="..." content="...">` or `<meta name="..." content="...">`.
-fn extract_meta(html: &str, property: &str) -> Option<String> {
-    let lower = html.to_ascii_lowercase();
-    let mut pos = 0;
-    while let Some(found) = lower[pos..].find("<meta") {
-        let tag_start = pos + found;
-        let Some(tag_end) = lower[tag_start..].find('>').map(|end| tag_start + end) else {
-            break;
-        };
-        let attrs = parse_attrs(&html[tag_start..=tag_end]);
+fn extract_meta(document: &Html, property: &str) -> Option<String> {
+    let selector = Selector::parse("meta").ok()?;
 
-        let matches = attrs
-            .iter()
-            .any(|(key, value)| (key == "property" || key == "name") && value == property);
+    document.select(&selector).find_map(|element| {
+        let value = element
+            .value()
+            .attr("property")
+            .or_else(|| element.value().attr("name"))?;
 
-        if matches
-            && let Some((_, content)) = attrs.into_iter().find(|(key, _)| key == "content")
-            && !content.is_empty()
-        {
-            return Some(content);
+        if value.eq_ignore_ascii_case(property) {
+            element
+                .value()
+                .attr("content")
+                .filter(|content| !content.is_empty())
+                .map(ToString::to_string)
+        } else {
+            None
         }
-
-        pos = tag_end + 1;
-    }
-    None
+    })
 }
 
 /// Extract <title>...</title> content.
-fn extract_title(html: &str) -> Option<String> {
-    let lower = html.to_ascii_lowercase();
-    let start = lower.find("<title")? + 6;
-    let after_tag = &html[start..];
-    let content_start = after_tag.find('>')? + 1;
-    let content = &after_tag[content_start..];
-    let end = lower[start + content_start..].find("</title>")?;
-    let title = content[..end].trim();
+fn extract_title(document: &Html) -> Option<String> {
+    let selector = Selector::parse("title").ok()?;
+    let title = document
+        .select(&selector)
+        .next()?
+        .text()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let title = title.trim();
     if title.is_empty() {
         None
     } else {
-        Some(html_unescape(title))
+        Some(title.to_string())
     }
 }
 
-fn find_site_icon(html: &str) -> Option<String> {
+fn find_site_icon(document: &Html) -> Option<String> {
     let mut candidates = Vec::new();
-    let lower = html.to_ascii_lowercase();
-    let mut pos = 0;
+    let selector = Selector::parse("link").ok()?;
 
-    while let Some(found) = lower[pos..].find("<link") {
-        let tag_start = pos + found;
-        let Some(tag_end) = lower[tag_start..].find('>').map(|end| tag_start + end) else {
-            break;
-        };
-        let attrs = parse_attrs(&html[tag_start..=tag_end]);
-
-        if let Some(candidate) = icon_candidate_from_attrs(&attrs, candidates.len()) {
+    for element in document.select(&selector) {
+        if let Some(candidate) = icon_candidate_from_element(element, candidates.len()) {
             candidates.push(candidate);
         }
-
-        pos = tag_end + 1;
     }
 
     candidates.sort_by(|a, b| {
@@ -121,9 +112,9 @@ struct IconCandidate {
     index: usize,
 }
 
-fn icon_candidate_from_attrs(attrs: &[(String, String)], index: usize) -> Option<IconCandidate> {
-    let rel = attr_value(attrs, "rel")?;
-    let href = attr_value(attrs, "href")?;
+fn icon_candidate_from_element(element: ElementRef<'_>, index: usize) -> Option<IconCandidate> {
+    let rel = element.value().attr("rel")?;
+    let href = element.value().attr("href")?;
     if href.is_empty() {
         return None;
     }
@@ -150,15 +141,9 @@ fn icon_candidate_from_attrs(attrs: &[(String, String)], index: usize) -> Option
     Some(IconCandidate {
         href: href.to_string(),
         priority,
-        size: attr_value(attrs, "sizes").map_or(0, parse_largest_size),
+        size: element.value().attr("sizes").map_or(0, parse_largest_size),
         index,
     })
-}
-
-fn attr_value<'a>(attrs: &'a [(String, String)], name: &str) -> Option<&'a str> {
-    attrs
-        .iter()
-        .find_map(|(key, value)| (key == name).then_some(value.as_str()))
 }
 
 fn parse_largest_size(sizes: &str) -> u32 {
@@ -178,33 +163,26 @@ fn parse_largest_size(sizes: &str) -> u32 {
         .unwrap_or(0)
 }
 
-fn extract_itemprop_url(html: &str, itemprop: &str) -> Option<String> {
-    let mut pos = 0;
-    while let Some(tag_start) = html[pos..].find('<').map(|found| pos + found) {
-        if html[tag_start..].starts_with("</") {
-            pos = tag_start + 2;
-            continue;
-        }
+fn extract_itemprop_url(document: &Html, itemprop: &str) -> Option<String> {
+    let selector = Selector::parse("[itemprop]").ok()?;
 
-        let Some(tag_end) = html[tag_start..].find('>').map(|end| tag_start + end) else {
-            break;
-        };
-        let attrs = parse_attrs(&html[tag_start..=tag_end]);
-        let matches_itemprop = attrs
-            .iter()
-            .any(|(key, value)| key == "itemprop" && value == itemprop);
+    document.select(&selector).find_map(|element| {
+        let matches_itemprop = element
+            .value()
+            .attr("itemprop")
+            .is_some_and(|value| value.eq_ignore_ascii_case(itemprop));
 
         if matches_itemprop {
-            return attr_value(&attrs, "src")
-                .or_else(|| attr_value(&attrs, "content"))
-                .or_else(|| attr_value(&attrs, "href"))
-                .map(ToString::to_string);
+            element
+                .value()
+                .attr("src")
+                .or_else(|| element.value().attr("content"))
+                .or_else(|| element.value().attr("href"))
+                .map(ToString::to_string)
+        } else {
+            None
         }
-
-        pos = tag_end + 1;
-    }
-
-    None
+    })
 }
 
 /// Resolve a potentially relative URL against a base URL.
@@ -227,69 +205,6 @@ fn sanitize_logo_url(base: &url::Url, url_str: &str) -> Option<String> {
 
 fn fallback_favicon_url(base: &url::Url) -> Option<String> {
     sanitize_logo_url(base, "/favicon.ico")
-}
-
-fn parse_attrs(fragment: &str) -> Vec<(String, String)> {
-    let mut attrs = Vec::new();
-    let bytes = fragment.as_bytes();
-    let mut pos = 0;
-
-    while pos < bytes.len() {
-        while pos < bytes.len() && !is_attr_name_char(bytes[pos]) {
-            pos += 1;
-        }
-        let key_start = pos;
-        while pos < bytes.len() && is_attr_name_char(bytes[pos]) {
-            pos += 1;
-        }
-        if key_start == pos {
-            continue;
-        }
-        let key = fragment[key_start..pos].to_ascii_lowercase();
-
-        while pos < bytes.len() && bytes[pos].is_ascii_whitespace() {
-            pos += 1;
-        }
-        if pos >= bytes.len() || bytes[pos] != b'=' {
-            continue;
-        }
-        pos += 1;
-        while pos < bytes.len() && bytes[pos].is_ascii_whitespace() {
-            pos += 1;
-        }
-        if pos >= bytes.len() {
-            break;
-        }
-
-        let quote = bytes[pos];
-        let value = if quote == b'"' || quote == b'\'' {
-            pos += 1;
-            let value_start = pos;
-            while pos < bytes.len() && bytes[pos] != quote {
-                pos += 1;
-            }
-            let value = fragment[value_start..pos].to_string();
-            pos += usize::from(pos < bytes.len());
-            value
-        } else {
-            let value_start = pos;
-            while pos < bytes.len()
-                && !bytes[pos].is_ascii_whitespace()
-                && !matches!(bytes[pos], b'>' | b'/')
-            {
-                pos += 1;
-            }
-            fragment[value_start..pos].to_string()
-        };
-
-        attrs.push((key, html_unescape(&value)));
-    }
-
-    attrs
-}
-
-fn is_attr_name_char(ch: u8) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, b'-' | b':' | b'_')
 }
 
 fn html_unescape(s: &str) -> String {
